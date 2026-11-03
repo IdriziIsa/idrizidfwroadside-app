@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>Send a Quote | Idrizi DFW Roadside</title>
+<style>
+  :root{color-scheme:light dark;--paper:#F5F5F7;--card:#fff;--ink:#1D1D1F;--muted:#5C5C61;--line:rgba(60,60,67,.18);--navy:#0B1F44;--tint:#0B1F44;--gold:#F2B705}
+  @media (prefers-color-scheme:dark){:root{--paper:#000;--card:#1C1C1E;--ink:#F5F5F7;--muted:#A1A1A6;--line:rgba(235,235,245,.16);--navy:#12306B;--tint:#F2B705}}
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{background:var(--paper);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif;font-size:17px;line-height:1.4;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:520px;margin:0 auto;padding:calc(24px + env(safe-area-inset-top)) 20px calc(40px + env(safe-area-inset-bottom))}
+  h1{font-size:30px;font-weight:800;letter-spacing:-.02em;line-height:1.1}
+  .sub{color:var(--muted);margin:6px 0 22px}
+  .group{background:var(--card);border-radius:16px;overflow:hidden}
+  .field{display:block;padding:11px 16px}
+  .field + .field{border-top:.5px solid var(--line)}
+  .field span{display:block;font-size:13px;color:var(--muted);margin-bottom:2px}
+  input,textarea{width:100%;border:0;background:transparent;color:var(--ink);font-size:17px;font-family:inherit;padding:2px 0;outline:none;-webkit-appearance:none;appearance:none}
+  input::placeholder,textarea::placeholder{color:#8E8E93}
+  label.field:focus-within{background:var(--line);box-shadow:inset 3px 0 0 var(--tint)}
+  textarea{min-height:56px;resize:none}
+  .two{display:grid;grid-template-columns:1fr 1fr;border-top:.5px solid var(--line)}
+  .two .field{border-top:0}.two .field + .field{border-left:.5px solid var(--line)}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+  .chip{min-height:44px;padding:10px 16px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--ink);font-weight:600;font-size:16px;cursor:pointer}
+  .chip[aria-checked=true]{background:var(--tint);color:var(--card);border-color:transparent}
+  h2{font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:24px 16px 8px}
+  .preview{background:var(--card);border-radius:16px;padding:16px;white-space:pre-wrap;font-size:16px}
+  .btn{display:block;width:100%;margin-top:12px;padding:17px;border:0;border-radius:14px;background:var(--navy);color:#fff;font:inherit;font-weight:700;cursor:pointer}
+  .btn.alt{background:var(--card);color:var(--tint)}
+  .btn:active{opacity:.8}
+  .err{display:none;color:#D70015;font-size:15px;margin-top:10px}
+  @media (prefers-color-scheme:dark){.err{color:#FF453A}}
+  :focus-visible{outline:3px solid var(--tint);outline-offset:2px;border-radius:10px}
+  input:focus-visible,textarea:focus-visible{outline:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Send a quote</h1>
+  <p class="sub">Fill this in and it writes the text to your customer. You tap send.</p>
+
+  <div class="group">
+    <label class="field"><span>Customer name</span><input id="cname" autocomplete="off" placeholder="First name"></label>
+    <label class="field"><span>Customer phone</span><input id="cphone" type="tel" autocomplete="off" placeholder="(555) 555-5555"></label>
+    <div class="field"><span id="sl">Service</span><div class="chips" id="svc" role="radiogroup" aria-labelledby="sl"></div></div>
+    <div class="two">
+      <label class="field"><span>Price ($)</span><input id="price" inputmode="decimal" placeholder="85"></label>
+      <label class="field"><span>Arrival (minutes)</span><input id="eta" inputmode="numeric" placeholder="30"></label>
+    </div>
+    <label class="field"><span>Extra note (optional)</span><textarea id="note" placeholder="Payment: Cash App, Zelle, card on site"></textarea></label>
+  </div>
+
+  <h2>Message preview</h2>
+  <div class="preview" id="preview"></div>
+  <div class="err" id="err" role="alert">Add the customer's phone number and a price.</div>
+  <button class="btn" id="send">Text this quote</button>
+  <button class="btn alt" id="copy">Copy message</button>
+</div>
+
+<script>
+const BUSINESS = "Idrizi DFW Roadside";
+const PHONE = "(817) 448-4822";
+const SERVICES = ["Jump Start","Vehicle Lockout","Tire Change","Fuel Delivery","Other"];
+const $ = id => document.getElementById(id);
+let service = SERVICES[0];
+
+SERVICES.forEach(v => {
+  const c = document.createElement("button");
+  c.type = "button"; c.className = "chip"; c.dataset.v = v; c.textContent = v; c.setAttribute("role","radio");
+  c.onclick = () => { service = v; render(); };
+  $("svc").appendChild(c);
+});
+
+function msg(){
+  const name = $("cname").value.trim();
+  const price = $("price").value.replace(/[^0-9.]/g,"");
+  const eta = $("eta").value.replace(/[^0-9]/g,"");
+  const note = $("note").value.trim();
+  const lines = [
+    `Hi${name ? " " + name : ""}, this is ${BUSINESS}.`,
+    `Quote for ${service.toLowerCase()}: ${price ? "$" + price : "$__"}.` + (eta ? ` I can be there in about ${eta} minutes.` : ""),
+    note,
+    `Reply YES and I'll head your way.`,
+    `Questions? Call or text ${PHONE}.`
+  ];
+  return lines.filter(Boolean).join("\n");
+}
+function render(){
+  document.querySelectorAll("#svc .chip").forEach(c => c.setAttribute("aria-checked", c.dataset.v === service));
+  $("preview").textContent = msg();
+}
+["cname","cphone","price","eta","note"].forEach(i => $(i).addEventListener("input", render));
+render();
+
+function ok(){
+  const bad = !$("cphone").value.replace(/\D/g,"") || !$("price").value.trim();
+  $("err").style.display = bad ? "block" : "none";
+  return !bad;
+}
+$("send").onclick = () => {
+  if (!ok()) return;
+  const digits = $("cphone").value.replace(/\D/g,"");
+  location.href = "sms:" + digits + "?&body=" + encodeURIComponent(msg());
+};
+$("copy").onclick = async () => {
+  try { await navigator.clipboard.writeText(msg()); $("copy").textContent = "Copied"; }
+  catch(e){ $("copy").textContent = "Press and hold the message to copy"; }
+  setTimeout(() => $("copy").textContent = "Copy message", 2000);
+};
+</script>
+</body>
+</html>

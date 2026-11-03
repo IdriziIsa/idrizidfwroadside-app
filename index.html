@@ -60,7 +60,7 @@
   input::placeholder,textarea::placeholder{color:#8E8E93}
   input:focus-visible,select:focus-visible,textarea:focus-visible{outline:none}
   .field{transition:background .15s}
-  .field:focus-within{background:var(--line);box-shadow:inset 3px 0 0 var(--tint)}
+  label.field:focus-within{background:var(--line);box-shadow:inset 3px 0 0 var(--tint)}
   textarea{min-height:64px;resize:none}
   .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
   .chip{min-height:44px;padding:10px 16px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--ink);font-weight:600;font-size:16px;cursor:pointer}
@@ -118,14 +118,15 @@
       <button class="row" data-service="Tire Change">Tire change<span class="go" aria-hidden="true">›</span></button>
       <button class="row" data-service="Fuel Delivery">Fuel delivery<span class="go" aria-hidden="true">›</span></button>
     </div>
-    <p class="foot">Tap a service to start a request.</p>
+    <p class="foot">Tap a service to get a quote.</p>
   </section>
 
   <section id="request">
-    <h2>Request service</h2>
+    <h2>Get a quote</h2>
     <form id="form" novalidate>
       <div class="group">
         <div class="field"><span id="svcLabel">Service</span><div class="chips" id="chips" role="radiogroup" aria-labelledby="svcLabel"></div><input type="hidden" id="service" value="Jump Start"></div>
+        <div class="field"><span id="whenLabel">When do you need help?</span><div class="chips" id="whenChips" role="radiogroup" aria-labelledby="whenLabel"></div><input type="hidden" id="when" value="Now"></div>
         <label class="field"><span>Name</span><input id="name" autocomplete="name" placeholder="Your name"></label>
         <label class="field"><span>Phone</span><input id="phone" type="tel" autocomplete="tel" placeholder="(555) 555-5555"></label>
         <label class="field"><span>Where are you?</span><input id="where" placeholder="Address, cross streets or landmark"></label>
@@ -137,8 +138,8 @@
         <label class="field"><span>Notes</span><textarea id="notes" placeholder="Anything that helps (optional)"></textarea></label>
       </div>
       <div class="err" id="err" role="alert">Please add your name, phone number and location.</div>
-      <button type="button" class="send" id="sendText">Send request by text</button>
-      <button type="button" class="send alt" id="sendMail">Send request by email</button>
+      <button type="button" class="send" id="sendText">Request a quote by text</button>
+      <button type="button" class="send alt" id="sendMail">Request a quote by email</button>
     </form>
   </section>
 
@@ -157,24 +158,29 @@
 /* ============ EDIT THESE ============ */
 const CONFIG = {
   phoneDigits: "+18174484822",
-  email: "",                     // add an email to turn on "Send request by email"
+  email: "",                     // add an email to turn on "Request a quote by email"
   services: ["Jump Start","Vehicle Lockout","Tire Change","Fuel Delivery"]
 };
 /* ==================================== */
 const $ = id => document.getElementById(id);
 let mapsLink = "";
 
-function setService(v){
-  $("service").value = v;
-  document.querySelectorAll(".chip").forEach(c => c.setAttribute("aria-checked", c.dataset.v === v));
+function pick(group, hidden, v){
+  $(hidden).value = v;
+  document.querySelectorAll(`#${group} .chip`).forEach(c => c.setAttribute("aria-checked", c.dataset.v === v));
 }
-CONFIG.services.concat(["Other / Not sure"]).forEach(v => {
-  const c = document.createElement("button");
-  c.type = "button"; c.className = "chip"; c.dataset.v = v; c.textContent = v; c.setAttribute("role","radio");
-  c.onclick = () => setService(v);
-  $("chips").appendChild(c);
-});
-setService(CONFIG.services[0]);
+function chips(group, hidden, vals){
+  vals.forEach(v => {
+    const c = document.createElement("button");
+    c.type = "button"; c.className = "chip"; c.dataset.v = v; c.textContent = v; c.setAttribute("role","radio");
+    c.onclick = () => pick(group, hidden, v);
+    $(group).appendChild(c);
+  });
+  pick(group, hidden, vals[0]);
+}
+chips("chips", "service", CONFIG.services.concat(["Other / Not sure"]));
+chips("whenChips", "when", ["Now","Within an hour","Later today","Schedule ahead"]);
+function setService(v){ pick("chips","service",v); }
 if (!CONFIG.email) $("sendMail").style.display = "none";
 
 document.querySelectorAll("#services .row").forEach(r => r.onclick = () => {
@@ -197,8 +203,9 @@ function build() {
   if (!v("name") || !v("phone") || (!v("where") && !mapsLink)) { $("err").style.display = "block"; return null; }
   $("err").style.display = "none";
   return [
-    "ROADSIDE REQUEST",
+    "QUOTE REQUEST",
     "Service: " + v("service"),
+    "When: " + v("when"),
     "Name: " + v("name"),
     "Phone: " + v("phone"),
     "Location: " + (v("where") || "see map link"),
@@ -208,7 +215,7 @@ function build() {
   ].filter(Boolean).join("\n");
 }
 $("sendText").onclick = () => { const m = build(); if (m) location.href = "sms:" + CONFIG.phoneDigits + "?&body=" + encodeURIComponent(m); };
-$("sendMail").onclick = () => { const m = build(); if (m) location.href = "mailto:" + CONFIG.email + "?subject=" + encodeURIComponent("Roadside Request: " + $("service").value) + "&body=" + encodeURIComponent(m); };
+$("sendMail").onclick = () => { const m = build(); if (m) location.href = "mailto:" + CONFIG.email + "?subject=" + encodeURIComponent("Quote Request: " + $("service").value) + "&body=" + encodeURIComponent(m); };
 </script>
 </body>
 </html>
