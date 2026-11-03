@@ -58,7 +58,9 @@
   .field span{display:block;font-size:13px;color:var(--muted);margin-bottom:2px}
   input,select,textarea{width:100%;border:0;background:transparent;color:var(--ink);font-size:17px;font-family:inherit;padding:2px 0;outline:none;-webkit-appearance:none;appearance:none;border-radius:0}
   input::placeholder,textarea::placeholder{color:#8E8E93}
-  .field:focus-within{background:var(--line)}
+  input:focus-visible,select:focus-visible,textarea:focus-visible{outline:none}
+  .field{transition:background .15s}
+  .field:focus-within{background:var(--line);box-shadow:inset 3px 0 0 var(--tint)}
   textarea{min-height:64px;resize:none}
   .two{display:grid;grid-template-columns:1fr 1fr}
   .two .field + .field{border-top:0;border-left:.5px solid var(--line)}
@@ -162,7 +164,6 @@ if (!CONFIG.email) $("sendMail").style.display = "none";
 document.querySelectorAll("#services .row").forEach(r => r.onclick = () => {
   $("service").value = r.dataset.service;
   $("request").scrollIntoView({behavior: matchMedia("(prefers-reduced-motion:reduce)").matches ? "auto" : "smooth"});
-  setTimeout(() => $("name").focus({preventScroll:true}), 450);
 });
 
 $("locBtn").onclick = () => {
