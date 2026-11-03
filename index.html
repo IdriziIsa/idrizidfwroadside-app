@@ -68,9 +68,11 @@
   .chip:focus-visible{outline:3px solid var(--tint);outline-offset:2px}
   .two{display:grid;grid-template-columns:1fr 1fr}
   .two .field + .field{border-top:0;border-left:.5px solid var(--line)}
-  .loc{color:var(--tint);font-weight:600}
-  .loc.ok{color:#1E8E3E}
-  @media (prefers-color-scheme:dark){.loc.ok{color:#30D158}}
+  .locwrap{padding:12px 16px;border-top:.5px solid var(--line)}
+  .locwrap + .two{border-top:.5px solid var(--line)}
+  .locbtn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:48px;padding:12px;border-radius:12px;border:1.5px solid var(--tint);background:transparent;color:var(--tint);font-weight:700;cursor:pointer}
+  .locbtn:active{opacity:.7}
+  .locbtn.ok{background:#1E8E3E;border-color:#1E8E3E;color:#fff}
   .err{display:none;color:#D70015;font-size:15px;margin:10px 16px 0}
   @media (prefers-color-scheme:dark){.err{color:#FF453A}}
   .send{display:block;width:100%;margin-top:16px;padding:17px;border:0;border-radius:14px;background:var(--navy);color:#fff;font-weight:700;cursor:pointer}
@@ -127,7 +129,7 @@
         <label class="field"><span>Name</span><input id="name" autocomplete="name" placeholder="Your name"></label>
         <label class="field"><span>Phone</span><input id="phone" type="tel" autocomplete="tel" placeholder="(555) 555-5555"></label>
         <label class="field"><span>Where are you?</span><input id="where" placeholder="Address, cross streets or landmark"></label>
-        <button type="button" class="row loc" id="locBtn">Share my exact location</button>
+        <div class="locwrap"><button type="button" class="locbtn" id="locBtn"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg><span id="locTxt">Share my exact location</span></button></div>
         <div class="two">
           <label class="field"><span>Vehicle</span><input id="vehicle" placeholder="Make and model"></label>
           <label class="field"><span>Color</span><input id="color" placeholder="Silver"></label>
@@ -182,12 +184,12 @@ document.querySelectorAll("#services .row").forEach(r => r.onclick = () => {
 
 $("locBtn").onclick = () => {
   const b = $("locBtn");
-  if (!navigator.geolocation) { b.textContent = "Location unavailable. Type it above."; return; }
-  b.textContent = "Finding you…";
+  if (!navigator.geolocation) { $("locTxt").textContent = "Location unavailable. Type it above."; return; }
+  $("locTxt").textContent = "Finding you…";
   navigator.geolocation.getCurrentPosition(p => {
     mapsLink = `https://maps.google.com/?q=${p.coords.latitude.toFixed(6)},${p.coords.longitude.toFixed(6)}`;
-    b.textContent = "Location added"; b.classList.add("ok");
-  }, () => { b.textContent = "Couldn't get location. Type it above."; });
+    $("locTxt").textContent = "Location added"; b.classList.add("ok");
+  }, () => { $("locTxt").textContent = "Couldn't get location. Type it above."; });
 };
 
 function build() {
