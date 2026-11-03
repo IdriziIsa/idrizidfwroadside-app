@@ -62,6 +62,10 @@
   .field{transition:background .15s}
   .field:focus-within{background:var(--line);box-shadow:inset 3px 0 0 var(--tint)}
   textarea{min-height:64px;resize:none}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+  .chip{min-height:44px;padding:10px 16px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--ink);font-weight:600;font-size:16px;cursor:pointer}
+  .chip[aria-checked=true]{background:var(--tint);color:var(--card);border-color:transparent}
+  .chip:focus-visible{outline:3px solid var(--tint);outline-offset:2px}
   .two{display:grid;grid-template-columns:1fr 1fr}
   .two .field + .field{border-top:0;border-left:.5px solid var(--line)}
   .loc{color:var(--tint);font-weight:600}
@@ -119,7 +123,7 @@
     <h2>Request service</h2>
     <form id="form" novalidate>
       <div class="group">
-        <label class="field"><span>Service</span><select id="service"></select></label>
+        <div class="field"><span id="svcLabel">Service</span><div class="chips" id="chips" role="radiogroup" aria-labelledby="svcLabel"></div><input type="hidden" id="service" value="Jump Start"></div>
         <label class="field"><span>Name</span><input id="name" autocomplete="name" placeholder="Your name"></label>
         <label class="field"><span>Phone</span><input id="phone" type="tel" autocomplete="tel" placeholder="(555) 555-5555"></label>
         <label class="field"><span>Where are you?</span><input id="where" placeholder="Address, cross streets or landmark"></label>
@@ -158,11 +162,21 @@ const CONFIG = {
 const $ = id => document.getElementById(id);
 let mapsLink = "";
 
-CONFIG.services.concat(["Other / Not sure"]).forEach(s => $("service").insertAdjacentHTML("beforeend", `<option>${s}</option>`));
+function setService(v){
+  $("service").value = v;
+  document.querySelectorAll(".chip").forEach(c => c.setAttribute("aria-checked", c.dataset.v === v));
+}
+CONFIG.services.concat(["Other / Not sure"]).forEach(v => {
+  const c = document.createElement("button");
+  c.type = "button"; c.className = "chip"; c.dataset.v = v; c.textContent = v; c.setAttribute("role","radio");
+  c.onclick = () => setService(v);
+  $("chips").appendChild(c);
+});
+setService(CONFIG.services[0]);
 if (!CONFIG.email) $("sendMail").style.display = "none";
 
 document.querySelectorAll("#services .row").forEach(r => r.onclick = () => {
-  $("service").value = r.dataset.service;
+  setService(r.dataset.service);
   $("request").scrollIntoView({behavior: matchMedia("(prefers-reduced-motion:reduce)").matches ? "auto" : "smooth"});
 });
 
