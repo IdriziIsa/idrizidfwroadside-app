@@ -26,6 +26,17 @@
   .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
   .chip{min-height:44px;padding:10px 16px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--ink);font-weight:600;font-size:16px;cursor:pointer}
   .chip[aria-checked=true]{background:var(--tint);color:var(--card);border-color:transparent}
+  .hint{font-size:15px;color:var(--muted)}
+  .sugg{border-top:.5px solid var(--line)}
+  .use{margin-top:8px;padding:10px 16px;border-radius:999px;border:0;background:var(--tint);color:var(--card);font:inherit;font-weight:700;font-size:15px;cursor:pointer}
+  .set{margin-top:16px}
+  .set summary{padding:16px;font-weight:600;cursor:pointer;list-style:none}
+  .set summary::-webkit-details-marker{display:none}
+  .set summary::after{content:'›';float:right;color:var(--muted);font-size:22px;line-height:1;transform:rotate(90deg)}
+  .set[open] summary::after{transform:rotate(-90deg)}
+  .setnote{padding:0 16px 12px;color:var(--muted);font-size:14px}
+  .set .two{border-top:.5px solid var(--line)}
+  .set > .field{border-top:.5px solid var(--line)}
   h2{font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:24px 16px 8px}
   .preview{background:var(--card);border-radius:16px;padding:16px;white-space:pre-wrap;font-size:16px}
   .btn{display:block;width:100%;margin-top:12px;padding:17px;border:0;border-radius:14px;background:var(--navy);color:#fff;font:inherit;font-weight:700;cursor:pointer}
@@ -46,12 +57,23 @@
     <label class="field"><span>Customer name</span><input id="cname" autocomplete="off" placeholder="First name"></label>
     <label class="field"><span>Customer phone</span><input id="cphone" type="tel" autocomplete="off" placeholder="(555) 555-5555"></label>
     <div class="field"><span id="sl">Service</span><div class="chips" id="svc" role="radiogroup" aria-labelledby="sl"></div></div>
+    <label class="field"><span>Distance to customer (miles)</span><input id="dist" inputmode="decimal" placeholder="12"></label>
+    <div class="field sugg"><div class="hint" id="sugg">Set your prices below to get a suggested price.</div><button type="button" class="use" id="use" hidden>Use suggested price</button></div>
     <div class="two">
       <label class="field"><span>Price ($)</span><input id="price" inputmode="decimal" placeholder="85"></label>
       <label class="field"><span>Arrival (minutes)</span><input id="eta" inputmode="numeric" placeholder="30"></label>
     </div>
     <label class="field"><span>Extra note (optional)</span><textarea id="note" placeholder="Payment: Cash App, Zelle, card on site"></textarea></label>
   </div>
+
+  <details class="group set" id="settings">
+    <summary>Pricing settings</summary>
+    <div class="setnote">Set these once. They stay saved on this phone and never show on the public site.</div>
+    <div class="two"><label class="field"><span>Jump start ($)</span><input id="r0" inputmode="decimal" placeholder="65"></label><label class="field"><span>Lockout ($)</span><input id="r1" inputmode="decimal" placeholder="75"></label></div>
+    <div class="two"><label class="field"><span>Tire change ($)</span><input id="r2" inputmode="decimal" placeholder="70"></label><label class="field"><span>Fuel delivery ($)</span><input id="r3" inputmode="decimal" placeholder="60"></label></div>
+    <div class="two"><label class="field"><span>Other ($)</span><input id="r4" inputmode="decimal" placeholder="80"></label><label class="field"><span>Miles included</span><input id="free" inputmode="decimal" placeholder="10"></label></div>
+    <label class="field"><span>Charge per extra mile ($)</span><input id="permile" inputmode="decimal" placeholder="3"></label>
+  </details>
 
   <h2>Message preview</h2>
   <div class="preview" id="preview"></div>
@@ -70,7 +92,7 @@ let service = SERVICES[0];
 SERVICES.forEach(v => {
   const c = document.createElement("button");
   c.type = "button"; c.className = "chip"; c.dataset.v = v; c.textContent = v; c.setAttribute("role","radio");
-  c.onclick = () => { service = v; render(); };
+  c.onclick = () => { service = v; render(); if (typeof suggest === 'function') suggest(); };
   $("svc").appendChild(c);
 });
 
@@ -94,6 +116,30 @@ function render(){
 }
 ["cname","cphone","price","eta","note"].forEach(i => $(i).addEventListener("input", render));
 render();
+
+
+/* Price helper: base price per service + charge for miles beyond the included distance. */
+const RATE_IDS = ["r0","r1","r2","r3","r4","free","permile"];
+try { const sv = JSON.parse(localStorage.getItem("idrizi_rates") || "{}"); RATE_IDS.forEach(i => { if (sv[i] != null) $(i).value = sv[i]; }); } catch(e){}
+const num = id => parseFloat($(id).value.replace(/[^0-9.]/g,"")) || 0;
+let suggested = null;
+function suggest(){
+  const i = SERVICES.indexOf(service), base = num("r" + i);
+  const miles = num("dist"), extra = Math.max(0, miles - num("free")), per = num("permile");
+  suggested = null; $("use").hidden = true;
+  if (!base) { $("sugg").textContent = "Set your prices below to get a suggested price."; return; }
+  suggested = Math.round(base + extra * per);
+  $("sugg").textContent = "Suggested: $" + suggested + (extra && per ? " ($" + base + " base + " + extra + " extra mi × $" + per + ")" : " ($" + base + " base)");
+  $("use").textContent = "Use $" + suggested; $("use").hidden = false;
+}
+RATE_IDS.forEach(i => $(i).addEventListener("input", () => {
+  try { const o = {}; RATE_IDS.forEach(k => o[k] = $(k).value); localStorage.setItem("idrizi_rates", JSON.stringify(o)); } catch(e){}
+  suggest();
+}));
+$("dist").addEventListener("input", suggest);
+$("use").onclick = () => { $("price").value = suggested; render(); };
+SERVICES.forEach((v,i) => {});
+suggest();
 
 function ok(){
   const bad = !$("cphone").value.replace(/\D/g,"") || !$("price").value.trim();
