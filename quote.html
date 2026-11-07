@@ -9,6 +9,7 @@
   :root{color-scheme:light dark;--paper:#F5F5F7;--card:#fff;--ink:#1D1D1F;--muted:#5C5C61;--line:rgba(60,60,67,.18);--navy:#0B1F44;--tint:#0B1F44;--gold:#F2B705}
   @media (prefers-color-scheme:dark){:root{--paper:#000;--card:#1C1C1E;--ink:#F5F5F7;--muted:#A1A1A6;--line:rgba(235,235,245,.16);--navy:#12306B;--tint:#F2B705}}
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  [hidden]{display:none !important}
   body{background:var(--paper);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif;font-size:17px;line-height:1.4;-webkit-font-smoothing:antialiased}
   .wrap{max-width:520px;margin:0 auto;padding:calc(24px + env(safe-area-inset-top)) 20px calc(40px + env(safe-area-inset-bottom))}
   h1{font-size:30px;font-weight:800;letter-spacing:-.02em;line-height:1.1}
@@ -37,6 +38,14 @@
   .setnote{padding:0 16px 12px;color:var(--muted);font-size:14px}
   .set .two{border-top:.5px solid var(--line)}
   .set > .field{border-top:.5px solid var(--line)}
+  h2.first{margin-top:0}
+  #req{min-height:84px}
+  .srow{padding:12px 16px;border-top:.5px solid var(--line)}
+  .srow b{display:block;font-size:13px;color:var(--muted);font-weight:600;margin-bottom:1px}
+  .sact{display:flex;flex-wrap:wrap;gap:8px;padding:12px 16px;border-top:.5px solid var(--line)}
+  .sact a,.sact button{display:inline-block;padding:10px 16px;border-radius:999px;background:var(--tint);color:var(--card);font-weight:700;font-size:15px;text-decoration:none;border:0;font-family:inherit;cursor:pointer}
+  .sact button{background:transparent;color:var(--tint);border:1.5px solid var(--tint)}
+  .smsg{padding:12px 16px;border-top:.5px solid var(--line);color:var(--muted);font-size:15px}
   h2{font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:24px 16px 8px}
   .preview{background:var(--card);border-radius:16px;padding:16px;white-space:pre-wrap;font-size:16px}
   .btn{display:block;width:100%;margin-top:12px;padding:17px;border:0;border-radius:14px;background:var(--navy);color:#fff;font:inherit;font-weight:700;cursor:pointer}
@@ -51,7 +60,18 @@
 <body>
 <div class="wrap">
   <h1>Send a quote</h1>
-  <p class="sub">Fill this in and it writes the text to your customer. You tap send.</p>
+  <p class="sub">Paste the customer's text, check the price, tap send.</p>
+
+  <h2 class="first">Step 1 · Paste the customer's request</h2>
+  <div class="group">
+    <div class="field" id="pasteArea">
+      <textarea id="req" placeholder="Copy the request text from Messages, then paste it here"></textarea>
+      <button type="button" class="use" id="pasteBtn">Paste from clipboard</button>
+    </div>
+    <div id="summary" hidden></div>
+  </div>
+
+  <h2>Step 2 · Set the price</h2>
 
   <div class="group">
     <label class="field"><span>Customer name</span><input id="cname" autocomplete="off" placeholder="First name"></label>
@@ -73,13 +93,15 @@
     <div class="two"><label class="field"><span>Tire change ($)</span><input id="r2" inputmode="decimal" placeholder="70"></label><label class="field"><span>Fuel delivery ($)</span><input id="r3" inputmode="decimal" placeholder="60"></label></div>
     <div class="two"><label class="field"><span>Other ($)</span><input id="r4" inputmode="decimal" placeholder="80"></label><label class="field"><span>Miles included</span><input id="free" inputmode="decimal" placeholder="10"></label></div>
     <label class="field"><span>Charge per extra mile ($)</span><input id="permile" inputmode="decimal" placeholder="3"></label>
+    <label class="field"><span>Default note on every quote</span><input id="dnote" placeholder="Payment: Cash App, Zelle, or card on site"></label>
   </details>
 
-  <h2>Message preview</h2>
+  <h2>Step 3 · Check and send</h2>
   <div class="preview" id="preview"></div>
   <div class="err" id="err" role="alert">Add the customer's phone number and a price.</div>
   <button class="btn" id="send">Text this quote</button>
   <button class="btn alt" id="copy">Copy message</button>
+  <button class="btn alt" id="newq">Start a new quote</button>
 </div>
 
 <script>
@@ -133,13 +155,63 @@ function suggest(){
   $("use").textContent = "Use $" + suggested; $("use").hidden = false;
 }
 RATE_IDS.forEach(i => $(i).addEventListener("input", () => {
-  try { const o = {}; RATE_IDS.forEach(k => o[k] = $(k).value); localStorage.setItem("idrizi_rates", JSON.stringify(o)); } catch(e){}
+  try { const o = JSON.parse(localStorage.getItem("idrizi_rates") || "{}"); RATE_IDS.forEach(k => o[k] = $(k).value); localStorage.setItem("idrizi_rates", JSON.stringify(o)); } catch(e){}
   suggest();
 }));
 $("dist").addEventListener("input", suggest);
 $("use").onclick = () => { $("price").value = suggested; render(); };
 SERVICES.forEach((v,i) => {});
 suggest();
+
+/* Paste the customer's request text and fill in what we can */
+const getF = (t, k) => { const m = t.match(new RegExp("^\\s*" + k + "\\s*:\\s*(.+)$", "im")); return m ? m[1].trim() : ""; };
+function row(label, value){ const d = document.createElement("div"); d.className = "srow"; const b = document.createElement("b"); b.textContent = label; d.appendChild(b); d.appendChild(document.createTextNode(value)); return d; }
+function parseReq(){
+  const t = $("req").value, box = $("summary");
+  box.replaceChildren(); $("pasteArea").hidden = false;
+  if (!t.trim()) { box.hidden = true; return; }
+  box.hidden = false;
+  const f = { name:getF(t,"Name"), phone:getF(t,"Phone"), service:getF(t,"Service"), when:getF(t,"When"), loc:getF(t,"Location"), map:getF(t,"Map"), veh:getF(t,"Vehicle"), vin:getF(t,"VIN"), notes:getF(t,"Notes") };
+  if (!f.phone && !f.name && !f.service) { const m = document.createElement("div"); m.className = "smsg"; m.textContent = "That doesn't look like a request text. Copy the whole message from Messages and paste it again."; box.appendChild(m); return; }
+  if (f.name) $("cname").value = f.name.split(/\s+/)[0];
+  if (f.phone) $("cphone").value = f.phone;
+  const s = f.service.toLowerCase(), hit = SERVICES.find(x => x.toLowerCase() === s) || (s.startsWith("other") ? "Other" : null);
+  if (hit) { service = hit; }
+  render(); suggest();
+  if (f.service) box.appendChild(row("Service", f.service + (f.when ? " · " + f.when : "")));
+  if (f.loc) box.appendChild(row("Location", f.loc));
+  if (f.veh) box.appendChild(row("Vehicle", f.veh));
+  if (f.vin) box.appendChild(row("VIN", f.vin));
+  if (f.notes) box.appendChild(row("Customer notes", f.notes));
+  const act = document.createElement("div"); act.className = "sact";
+  const digits = f.phone.replace(/\D/g, "");
+  if (digits) { const a = document.createElement("a"); a.href = "tel:" + digits; a.textContent = "Call customer"; act.appendChild(a); }
+  if (/^https:\/\/maps\.google\.com\//.test(f.map)) { const a = document.createElement("a"); a.href = f.map; a.target = "_blank"; a.rel = "noopener"; a.textContent = "Open in Maps"; act.appendChild(a); }
+  const chg = document.createElement("button"); chg.type = "button"; chg.textContent = "Change request";
+  chg.onclick = () => { $("req").value = ""; $("pasteArea").hidden = false; parseReq(); $("req").focus(); };
+  act.appendChild(chg);
+  box.appendChild(act);
+  $("pasteArea").hidden = true;
+}
+$("req").addEventListener("input", parseReq);
+$("pasteBtn").onclick = async () => {
+  try { $("req").value = await navigator.clipboard.readText(); parseReq(); }
+  catch(e){ $("req").focus(); $("pasteBtn").textContent = "Press and hold in the box, then tap Paste"; setTimeout(() => $("pasteBtn").textContent = "Paste from clipboard", 4000); }
+};
+
+/* Default note (payment methods) saved on this phone */
+try { const dn = (JSON.parse(localStorage.getItem("idrizi_rates") || "{}")).dnote; if (dn) { $("dnote").value = dn; $("note").value = dn; } } catch(e){}
+$("dnote").addEventListener("input", () => {
+  $("note").value = $("dnote").value; render();
+  try { const o = JSON.parse(localStorage.getItem("idrizi_rates") || "{}"); o.dnote = $("dnote").value; localStorage.setItem("idrizi_rates", JSON.stringify(o)); } catch(e){}
+});
+
+/* Start over */
+$("newq").onclick = () => {
+  ["req","cname","cphone","dist","price","eta"].forEach(i => $(i).value = "");
+  $("note").value = $("dnote").value; service = SERVICES[0];
+  $("pasteArea").hidden = false; parseReq(); render(); suggest(); window.scrollTo({top:0, behavior:"smooth"});
+};
 
 function ok(){
   const bad = !$("cphone").value.replace(/\D/g,"") || !$("price").value.trim();
