@@ -45,6 +45,7 @@
   .sact{display:flex;flex-wrap:wrap;gap:8px;padding:12px 16px;border-top:.5px solid var(--line)}
   .sact a,.sact button{display:inline-block;padding:10px 16px;border-radius:999px;background:var(--tint);color:var(--card);font-weight:700;font-size:15px;text-decoration:none;border:0;font-family:inherit;cursor:pointer}
   .sact button{background:transparent;color:var(--tint);border:1.5px solid var(--tint)}
+  .dtools{border-top:.5px solid var(--line)}
   .smsg{padding:12px 16px;border-top:.5px solid var(--line);color:var(--muted);font-size:15px}
   h2{font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:24px 16px 8px}
   .preview{background:var(--card);border-radius:16px;padding:16px;white-space:pre-wrap;font-size:16px}
@@ -78,6 +79,7 @@
     <label class="field"><span>Customer phone</span><input id="cphone" type="tel" autocomplete="off" placeholder="(555) 555-5555"></label>
     <div class="field"><span id="sl">Service</span><div class="chips" id="svc" role="radiogroup" aria-labelledby="sl"></div></div>
     <label class="field"><span>Distance to customer (miles)</span><input id="dist" inputmode="decimal" placeholder="12"></label>
+    <div class="field dtools" id="dtools" hidden><button type="button" class="use" id="measure">Measure from my location</button><div class="hint" id="dhint"></div></div>
     <div class="field sugg"><div class="hint" id="sugg">Set your prices below to get a suggested price.</div><button type="button" class="use" id="use" hidden>Use suggested price</button></div>
     <div class="two">
       <label class="field"><span>Price ($)</span><input id="price" inputmode="decimal" placeholder="85"></label>
@@ -93,6 +95,7 @@
     <div class="two"><label class="field"><span>Tire change ($)</span><input id="r2" inputmode="decimal" placeholder="70"></label><label class="field"><span>Fuel delivery ($)</span><input id="r3" inputmode="decimal" placeholder="60"></label></div>
     <div class="two"><label class="field"><span>Other ($)</span><input id="r4" inputmode="decimal" placeholder="80"></label><label class="field"><span>Miles included</span><input id="free" inputmode="decimal" placeholder="10"></label></div>
     <label class="field"><span>Charge per extra mile ($)</span><input id="permile" inputmode="decimal" placeholder="3"></label>
+    <div class="field"><span>Home base (optional)</span><button type="button" class="use" id="homeBtn">Save my current location as home base</button><div class="hint" id="homeHint">Used to measure distance if your phone can't share its location.</div></div>
     <label class="field"><span>Default note on every quote</span><input id="dnote" placeholder="Payment: Cash App, Zelle, or card on site"></label>
   </details>
 
@@ -163,12 +166,56 @@ $("use").onclick = () => { $("price").value = suggested; render(); };
 SERVICES.forEach((v,i) => {});
 suggest();
 
+/* Distance: customer's map pin -> Omer's location (road distance if available, otherwise an estimate) */
+let custLL = null;
+const getStore = () => { try { return JSON.parse(localStorage.getItem("idrizi_rates") || "{}"); } catch(e){ return {}; } };
+const setStore = (k, v) => { try { const o = getStore(); o[k] = v; localStorage.setItem("idrizi_rates", JSON.stringify(o)); } catch(e){} };
+const toRad = d => d * Math.PI / 180;
+function straightMiles(a, b){
+  const R = 3958.8, dLat = toRad(b.lat - a.lat), dLng = toRad(b.lng - a.lng);
+  const h = Math.sin(dLat/2)**2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng/2)**2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+async function roadMiles(a, b){
+  const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 6000);
+  try {
+    const r = await fetch("https://router.project-osrm.org/route/v1/driving/" + a.lng + "," + a.lat + ";" + b.lng + "," + b.lat + "?overview=false", { signal: ctl.signal });
+    const d = await r.json();
+    return d && d.routes && d.routes[0] ? d.routes[0].distance / 1609.344 : null;
+  } catch(e){ return null; } finally { clearTimeout(t); }
+}
+const here = () => new Promise((res, rej) => navigator.geolocation ? navigator.geolocation.getCurrentPosition(p => res({lat:p.coords.latitude, lng:p.coords.longitude}), rej, {timeout:10000}) : rej());
+async function startPoint(){
+  try { return { ll: await here(), src: "your location" }; }
+  catch(e){ const h = getStore().home; return h ? { ll: h, src: "your home base" } : null; }
+}
+$("measure").onclick = async () => {
+  if (!custLL) return;
+  const h = $("dhint"); h.className = "hint"; h.textContent = "Measuring…";
+  const s = await startPoint();
+  if (!s) { h.textContent = "Couldn't get your location. Type the distance, or save a home base in Pricing settings."; h.classList.add("bad"); return; }
+  const road = await roadMiles(s.ll, custLL);
+  let miles, how;
+  if (road != null) { miles = road; how = "by road from " + s.src; }
+  else { miles = straightMiles(s.ll, custLL) * 1.3; how = "estimated from " + s.src + " (straight line plus 30%)"; }
+  miles = Math.round(miles * 10) / 10;
+  $("dist").value = miles; suggest();
+  h.textContent = miles + " mi " + how + ". You can change it."; h.classList.add("ok");
+};
+$("homeBtn").onclick = async () => {
+  const h = $("homeHint");
+  try { const ll = await here(); setStore("home", ll); h.textContent = "Home base saved."; h.className = "hint ok"; }
+  catch(e){ h.textContent = "Couldn't get your location. Allow location access and try again."; h.className = "hint bad"; }
+};
+if (getStore().home) $("homeHint").textContent = "Home base saved. Tap to replace it with your current location.";
+
 /* Paste the customer's request text and fill in what we can */
 const getF = (t, k) => { const m = t.match(new RegExp("^\\s*" + k + "\\s*:\\s*(.+)$", "im")); return m ? m[1].trim() : ""; };
 function row(label, value){ const d = document.createElement("div"); d.className = "srow"; const b = document.createElement("b"); b.textContent = label; d.appendChild(b); d.appendChild(document.createTextNode(value)); return d; }
 function parseReq(){
   const t = $("req").value, box = $("summary");
   box.replaceChildren(); $("pasteArea").hidden = false;
+  custLL = null; $("dtools").hidden = true; $("dhint").textContent = "";
   if (!t.trim()) { box.hidden = true; return; }
   box.hidden = false;
   const f = { name:getF(t,"Name"), phone:getF(t,"Phone"), service:getF(t,"Service"), when:getF(t,"When"), loc:getF(t,"Location"), map:getF(t,"Map"), veh:getF(t,"Vehicle"), vin:getF(t,"VIN"), notes:getF(t,"Notes") };
@@ -183,6 +230,9 @@ function parseReq(){
   if (f.veh) box.appendChild(row("Vehicle", f.veh));
   if (f.vin) box.appendChild(row("VIN", f.vin));
   if (f.notes) box.appendChild(row("Customer notes", f.notes));
+  const mm = f.map.match(/q=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/);
+  if (mm) { custLL = { lat: parseFloat(mm[1]), lng: parseFloat(mm[2]) }; $("dtools").hidden = false; }
+  else if (f.loc) { const m = document.createElement("div"); m.className = "smsg"; m.textContent = "No map pin was shared, so type the distance yourself. Open the address in Maps to check it."; box.appendChild(m); }
   const act = document.createElement("div"); act.className = "sact";
   const digits = f.phone.replace(/\D/g, "");
   if (digits) { const a = document.createElement("a"); a.href = "tel:" + digits; a.textContent = "Call customer"; act.appendChild(a); }
@@ -210,7 +260,7 @@ $("dnote").addEventListener("input", () => {
 $("newq").onclick = () => {
   ["req","cname","cphone","dist","price","eta"].forEach(i => $(i).value = "");
   $("note").value = $("dnote").value; service = SERVICES[0];
-  $("pasteArea").hidden = false; parseReq(); render(); suggest(); window.scrollTo({top:0, behavior:"smooth"});
+  custLL = null; $("dtools").hidden = true; $("pasteArea").hidden = false; parseReq(); render(); suggest(); window.scrollTo({top:0, behavior:"smooth"});
 };
 
 function ok(){
