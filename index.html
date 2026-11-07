@@ -66,7 +66,12 @@
   .chip{min-height:44px;padding:10px 16px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--ink);font-weight:600;font-size:16px;cursor:pointer}
   .chip[aria-checked=true]{background:var(--tint);color:var(--card);border-color:transparent}
   .chip:focus-visible{outline:3px solid var(--tint);outline-offset:2px}
-  .two{display:grid;grid-template-columns:1fr 1fr}
+  .two + .field{border-top:.5px solid var(--line)}
+  .hint{font-size:13px;color:var(--muted);margin-top:4px}
+  .hint.ok{color:#1E8E3E}.hint.bad{color:#D70015}
+  @media (prefers-color-scheme:dark){.hint.ok{color:#30D158}.hint.bad{color:#FF453A}}
+  #vin{text-transform:uppercase;letter-spacing:.04em}
+  .two{display:grid;grid-template-columns:1.6fr 1fr}
   .two .field + .field{border-top:0;border-left:.5px solid var(--line)}
   .locwrap{padding:12px 16px;border-top:.5px solid var(--line)}
   .locwrap + .two{border-top:.5px solid var(--line)}
@@ -135,6 +140,7 @@
           <label class="field"><span>Vehicle</span><input id="vehicle" placeholder="Make and model"></label>
           <label class="field"><span>Color</span><input id="color" placeholder="Silver"></label>
         </div>
+        <label class="field"><span>VIN (optional)</span><input id="vin" maxlength="17" autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="17-character VIN"><div class="hint" id="vinHint">Driver-side dashboard or door jamb.</div></label>
         <label class="field"><span>Notes</span><textarea id="notes" placeholder="Anything that helps (optional)"></textarea></label>
       </div>
       <div class="err" id="err" role="alert">Please add your name, phone number and location.</div>
@@ -198,6 +204,30 @@ $("locBtn").onclick = () => {
   }, () => { $("locTxt").textContent = "Couldn't get location. Type it above."; });
 };
 
+/* VIN lookup: NHTSA vPIC (free public API). If it fails, the VIN is still sent as typed. */
+let vinInfo = "";
+const ACR = ["BMW","GMC","RAM","MINI","FIAT"];
+const titleCase = m => ACR.includes(m) ? m : m.toLowerCase().replace(/\b[a-z]/g, c => c.toUpperCase());
+$("vin").addEventListener("input", async () => {
+  const v = $("vin").value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  $("vin").value = v; vinInfo = "";
+  const h = $("vinHint"); h.className = "hint";
+  if (v.length < 17) { h.textContent = v.length ? v.length + " of 17 characters" : "Driver-side dashboard or door jamb."; return; }
+  if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(v)) { h.textContent = "That doesn't look like a valid VIN. Check for typos."; h.classList.add("bad"); return; }
+  h.textContent = "Looking it up…";
+  try {
+    const r = await fetch("https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValues/" + v + "?format=json");
+    const d = (await r.json()).Results[0];
+    if ($("vin").value !== v) return;
+    if (!d || !d.Make || !d.ModelYear) { h.textContent = "Couldn't match that VIN. We'll still send it."; h.classList.add("bad"); return; }
+    vinInfo = [d.ModelYear, titleCase(d.Make), d.Model].filter(Boolean).join(" ");
+    h.textContent = "Found: " + vinInfo; h.classList.add("ok");
+    if (!$("vehicle").value.trim()) $("vehicle").value = vinInfo;
+  } catch (e) {
+    if ($("vin").value === v) h.textContent = "Couldn't look it up right now. We'll still send the VIN.";
+  }
+});
+
 function build() {
   const v = id => $(id).value.trim();
   if (!v("name") || !v("phone") || (!v("where") && !mapsLink)) { $("err").style.display = "block"; return null; }
@@ -211,6 +241,7 @@ function build() {
     "Location: " + (v("where") || "see map link"),
     mapsLink && "Map: " + mapsLink,
     (v("vehicle") || v("color")) && "Vehicle: " + [v("vehicle"), v("color")].filter(Boolean).join(", "),
+    v("vin") && "VIN: " + v("vin") + (vinInfo ? " (" + vinInfo + ")" : ""),
     v("notes") && "Notes: " + v("notes")
   ].filter(Boolean).join("\n");
 }
