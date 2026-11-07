@@ -86,7 +86,7 @@ function msg(){
     `Reply YES and I'll head your way.`,
     `Questions? Call or text ${PHONE}.`
   ];
-  return lines.filter(Boolean).join("\n");
+  return lines.filter(Boolean).join("\n\n");
 }
 function render(){
   document.querySelectorAll("#svc .chip").forEach(c => c.setAttribute("aria-checked", c.dataset.v === service));

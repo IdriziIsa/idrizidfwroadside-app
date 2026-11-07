@@ -234,16 +234,13 @@ function build() {
   $("err").style.display = "none";
   return [
     "QUOTE REQUEST",
-    "Service: " + v("service"),
-    "When: " + v("when"),
-    "Name: " + v("name"),
-    "Phone: " + v("phone"),
-    "Location: " + (v("where") || "see map link"),
-    mapsLink && "Map: " + mapsLink,
-    (v("vehicle") || v("color")) && "Vehicle: " + [v("vehicle"), v("color")].filter(Boolean).join(", "),
-    v("vin") && "VIN: " + v("vin") + (vinInfo ? " (" + vinInfo + ")" : ""),
+    ["Service: " + v("service"), "When: " + v("when")],
+    ["Name: " + v("name"), "Phone: " + v("phone")],
+    ["Location: " + (v("where") || "see map link"), mapsLink && "Map: " + mapsLink],
+    [(v("vehicle") || v("color")) && "Vehicle: " + [v("vehicle"), v("color")].filter(Boolean).join(", "),
+     v("vin") && "VIN: " + v("vin") + (vinInfo ? " (" + vinInfo + ")" : "")],
     v("notes") && "Notes: " + v("notes")
-  ].filter(Boolean).join("\n");
+  ].map(x => Array.isArray(x) ? x.filter(Boolean).join("\n") : x).filter(Boolean).join("\n\n");
 }
 $("sendText").onclick = () => { const m = build(); if (m) location.href = "sms:" + CONFIG.phoneDigits + "?&body=" + encodeURIComponent(m); };
 $("sendMail").onclick = () => { const m = build(); if (m) location.href = "mailto:" + CONFIG.email + "?subject=" + encodeURIComponent("Quote Request: " + $("service").value) + "&body=" + encodeURIComponent(m); };
