@@ -259,6 +259,21 @@ $("pasteBtn").onclick = async () => {
 /* Request handed over from the job queue */
 try { const pend = localStorage.getItem("idrizi_pending"); if (pend) { localStorage.removeItem("idrizi_pending"); $("req").value = pend; parseReq(); } } catch(e){}
 
+/* Opened from the link in a request text: load that job and fill the quote */
+(async () => {
+  const ref = (new URLSearchParams(location.search).get("ref") || "").toUpperCase();
+  if (!/^[A-Z0-9]{6}$/.test(ref)) return;
+  const pin = getPin();
+  if (!pin) { location.replace("jobs.html?ref=" + ref); return; }
+  try {
+    const r = await fetch("/api/jobs", { headers: { "x-queue-pin": pin } });
+    if (r.status === 401) { try { localStorage.removeItem("idrizi_pin"); } catch(e){} location.replace("jobs.html?ref=" + ref); return; }
+    const j = ((await r.json()).jobs || []).find(x => x.ref === ref);
+    if (j) { jobId = j.id; jobIsNew = false; $("req").value = j.raw; parseReq(); }
+    else { $("req").value = ""; parseReq(); const m = document.createElement("div"); m.className = "smsg"; m.textContent = "That request isn't in the queue yet. Paste the text instead."; $("summary").hidden = false; $("summary").append(m); }
+  } catch(e){}
+})();
+
 /* Default note (payment methods) saved on this phone */
 try { const dn = (JSON.parse(localStorage.getItem("idrizi_rates") || "{}")).dnote; if (dn) { $("dnote").value = dn; $("note").value = dn; } } catch(e){}
 $("dnote").addEventListener("input", () => {

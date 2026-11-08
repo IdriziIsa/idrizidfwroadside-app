@@ -134,6 +134,8 @@ async function load(first){
 async function start(){
   $("gate").hidden = true; $("app").hidden = false;
   await migrate(); await load(true);
+  const ref = (new URLSearchParams(location.search).get("ref") || "").toUpperCase();
+  if (/^[A-Z0-9]{6}$/.test(ref)) { location.replace("quote.html?ref=" + ref); return; }
   clearInterval(timer); timer = setInterval(() => { if (!document.hidden) load(); }, 15000);
 }
 async function migrate(){
