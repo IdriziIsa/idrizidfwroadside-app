@@ -121,6 +121,12 @@ SERVICES.forEach(v => {
   $("svc").appendChild(c);
 });
 
+/* Link to the customer's tap-to-book page; set when this quote belongs to a job in the queue. */
+let jobId = null, jobIsNew = false;
+const hex32 = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, "0")).join("");
+const getPin = () => { try { return localStorage.getItem("idrizi_pin") || ""; } catch(e){ return ""; } };
+try { const pid = localStorage.getItem("idrizi_pending_id"); if (pid) { jobId = pid; localStorage.removeItem("idrizi_pending_id"); } } catch(e){}
+
 function msg(){
   const name = $("cname").value.trim();
   const price = $("price").value.replace(/[^0-9.]/g,"");
@@ -130,7 +136,8 @@ function msg(){
     `Hi${name ? " " + name : ""}, this is ${BUSINESS}.`,
     `Quote for ${service.toLowerCase()}: ${price ? "$" + price : "$__"}.` + (eta ? ` I can be there in about ${eta} minutes.` : ""),
     note,
-    `Reply YES and I'll head your way.`,
+    jobId ? `Ready to book? Tap here: ${location.origin}/confirm.html?j=${jobId}` : "",
+    jobId ? `Or just reply YES and I'll head your way.` : `Reply YES and I'll head your way.`,
     `Questions? Call or text ${PHONE}.`
   ];
   return lines.filter(Boolean).join("\n\n");
@@ -224,7 +231,7 @@ function parseReq(){
   if (f.phone) $("cphone").value = f.phone;
   const s = f.service.toLowerCase(), hit = SERVICES.find(x => x.toLowerCase() === s) || (s.startsWith("other") ? "Other" : null);
   if (hit) { service = hit; }
-  render(); suggest();
+  render(); suggest(); resolveJob(t);
   if (f.service) box.appendChild(row("Service", f.service + (f.when ? " · " + f.when : "")));
   if (f.loc) box.appendChild(row("Location", f.loc));
   if (f.veh) box.appendChild(row("Vehicle", f.veh));
@@ -263,8 +270,29 @@ $("dnote").addEventListener("input", () => {
 $("newq").onclick = () => {
   ["req","cname","cphone","dist","price","eta"].forEach(i => $(i).value = "");
   $("note").value = $("dnote").value; service = SERVICES[0];
+  jobId = null; jobIsNew = false;
   custLL = null; $("dtools").hidden = true; $("pasteArea").hidden = false; parseReq(); render(); suggest(); window.scrollTo({top:0, behavior:"smooth"});
 };
+
+/* Saves the quote to the queue (best effort, never blocks the text) */
+function syncQuote(){
+  const pin = getPin(); if (!pin) return;
+  if (!jobId) { jobId = hex32(); jobIsNew = true; render(); }
+  const price = $("price").value.replace(/[^0-9.]/g,""), quote = { price, eta: $("eta").value.replace(/[^0-9]/g,""), note: $("note").value.trim() };
+  const raw = $("req").value.trim() || ["Service: " + service, "Name: " + $("cname").value.trim(), "Phone: " + $("cphone").value.trim()].join("\n");
+  const body = jobIsNew ? { action: "create", id: jobId, raw, status: "Quoted", quote } : { action: "update", id: jobId, patch: { status: "Quoted", price, quote } };
+  jobIsNew = false;
+  try { fetch("/api/jobs", { method: "POST", keepalive: true, headers: { "x-queue-pin": pin, "content-type": "application/json" }, body: JSON.stringify(body) }).catch(() => {}); } catch(e){}
+}
+/* If the pasted text has a Ref from the website, link this quote to that job */
+async function resolveJob(t){
+  const pin = getPin(), ref = getF(t, "Ref").toUpperCase();
+  if (jobId || !pin || !ref) return;
+  try {
+    const r = await fetch("/api/jobs", { headers: { "x-queue-pin": pin } }); const d = await r.json();
+    const j = (d.jobs || []).find(x => x.ref === ref); if (j && !jobId) { jobId = j.id; jobIsNew = false; render(); }
+  } catch(e){}
+}
 
 function ok(){
   const bad = !$("cphone").value.replace(/\D/g,"") || !$("price").value.trim();
@@ -274,9 +302,11 @@ function ok(){
 $("send").onclick = () => {
   if (!ok()) return;
   const digits = $("cphone").value.replace(/\D/g,"");
+  syncQuote();
   location.href = "sms:" + digits + "?&body=" + encodeURIComponent(msg());
 };
 $("copy").onclick = async () => {
+  syncQuote();
   try { await navigator.clipboard.writeText(msg()); $("copy").textContent = "Copied"; }
   catch(e){ $("copy").textContent = "Press and hold the message to copy"; }
   setTimeout(() => $("copy").textContent = "Copy message", 2000);

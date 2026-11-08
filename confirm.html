@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>Book your service | Idrizi DFW Roadside</title>
+<style>
+  :root{color-scheme:light dark;--paper:#F5F5F7;--card:#fff;--ink:#1D1D1F;--muted:#5C5C61;--line:rgba(60,60,67,.18);--navy:#0B1F44;--gold:#F2B705;--ok:#1E7B34}
+  @media (prefers-color-scheme:dark){:root{--paper:#000;--card:#1C1C1E;--ink:#F5F5F7;--muted:#A1A1A6;--line:rgba(235,235,245,.16);--navy:#12306B;--ok:#32D74B}}
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  [hidden]{display:none !important}
+  body{background:var(--paper);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif;font-size:17px;line-height:1.4;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:460px;margin:0 auto;padding:calc(32px + env(safe-area-inset-top)) 20px calc(40px + env(safe-area-inset-bottom))}
+  .brand{font-weight:800;letter-spacing:-.01em;color:var(--muted);font-size:15px;text-transform:uppercase;margin-bottom:14px}
+  h1{font-size:30px;font-weight:800;letter-spacing:-.02em;line-height:1.12;margin-bottom:6px}
+  .sub{color:var(--muted);margin-bottom:20px}
+  .card{background:var(--card);border-radius:16px;overflow:hidden}
+  .row{display:flex;justify-content:space-between;gap:12px;padding:14px 16px}
+  .row + .row{border-top:.5px solid var(--line)}
+  .row span{color:var(--muted)}
+  .row b{text-align:right}
+  .price{font-size:28px}
+  .note{padding:14px 16px;border-top:.5px solid var(--line);color:var(--muted);font-size:15px}
+  .btn{display:block;width:100%;margin-top:16px;padding:18px;border:0;border-radius:14px;background:var(--navy);color:#fff;font:inherit;font-weight:700;font-size:18px;text-align:center;text-decoration:none;cursor:pointer}
+  .btn.alt{background:var(--card);color:var(--navy);border:1.5px solid var(--navy)}
+  @media (prefers-color-scheme:dark){.btn.alt{color:var(--gold);border-color:var(--gold)}}
+  .btn:active{opacity:.8}
+  .btn[disabled]{opacity:.5}
+  .done{color:var(--ok)}
+  .small{color:var(--muted);font-size:14px;margin-top:14px;text-align:center}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <div class="brand">Idrizi DFW Roadside</div>
+  <h1 id="h">One moment</h1>
+  <p class="sub" id="s"></p>
+  <div class="card" id="card" hidden></div>
+  <button class="btn" id="go" type="button" hidden>Yes, book it</button>
+  <a class="btn alt" id="call" href="tel:+18174484822">Call (817) 448-4822</a>
+  <p class="small" id="fine" hidden>Tapping book tells us to head your way.</p>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const id = new URLSearchParams(location.search).get("j") || "";
+const T = (h, s) => { $("h").textContent = h; $("s").textContent = s || ""; };
+function summary(j){
+  const c = $("card"); c.replaceChildren(); c.hidden = false;
+  const row = (l, v, cls) => { const d = document.createElement("div"); d.className = "row"; const a = document.createElement("span"); a.textContent = l; const b = document.createElement("b"); b.textContent = v; if (cls) b.className = cls; d.append(a, b); c.append(d); };
+  row("Service", j.service);
+  if (j.price) row("Price", "$" + j.price, "price");
+  if (j.eta) row("Arrival", "about " + j.eta + " min");
+  if (j.note) { const n = document.createElement("div"); n.className = "note"; n.textContent = j.note; c.append(n); }
+}
+function show(j){
+  $("go").hidden = true; $("fine").hidden = true;
+  if (j.status === "Booked" || j.status === "Done") {
+    T("You're booked" + (j.name ? ", " + j.name : "") + ".", "We're getting ready to head your way. Keep your phone nearby in case we need to reach you."); summary(j); $("h").className = "done"; return;
+  }
+  if (j.expired) { T("This quote has expired.", "Please call or text us and we'll send a fresh one."); return; }
+  if (!j.price) { T("We're still preparing your quote.", "You'll get a text from us shortly. You can also call."); return; }
+  T("Your quote" + (j.name ? ", " + j.name : ""), "Tap below to book and we'll head your way."); summary(j);
+  $("go").hidden = false; $("fine").hidden = false;
+}
+async function call(method, body){
+  const r = await fetch("/api/confirm" + (method === "GET" ? "?j=" + encodeURIComponent(id) : ""), { method, headers: { "content-type": "application/json" }, body: body && JSON.stringify(body) });
+  const d = await r.json().catch(() => ({})); return { status: r.status, d };
+}
+(async () => {
+  if (!/^[a-f0-9]{32}$/.test(id)) { T("We couldn't find that quote.", "Please call or text us."); return; }
+  try {
+    const { status, d } = await call("GET");
+    if (status === 404) { T("We couldn't find that quote.", "Please call or text us."); return; }
+    if (d.job) show(d.job); else T("Something went wrong.", "Please call or text us.");
+  } catch (e) { T("No connection.", "Check your signal and reload, or call us."); }
+})();
+$("go").onclick = async () => {
+  $("go").disabled = true; $("go").textContent = "Booking...";
+  try {
+    const { status, d } = await call("POST", { j: id });
+    if (d.job) show(d.job); else throw 0;
+    if (status === 410) { $("go").hidden = true; }
+  } catch (e) { $("go").disabled = false; $("go").textContent = "Try again"; T("That didn't go through.", "Check your signal and tap again, or call us."); }
+};
+</script>
+</body>
+</html>
