@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>Job Queue | Idrizi DFW Roadside</title>
+<style>
+  :root{color-scheme:light dark;--paper:#F5F5F7;--card:#fff;--ink:#1D1D1F;--muted:#5C5C61;--line:rgba(60,60,67,.18);--navy:#0B1F44;--tint:#0B1F44;--gold:#F2B705;--new:#D70015;--quoted:#B25E00;--booked:#0A6CFF;--done:#1E7B34}
+  @media (prefers-color-scheme:dark){:root{--paper:#000;--card:#1C1C1E;--ink:#F5F5F7;--muted:#A1A1A6;--line:rgba(235,235,245,.16);--navy:#12306B;--tint:#F2B705;--new:#FF453A;--quoted:#FF9F0A;--booked:#4DA3FF;--done:#32D74B}}
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  [hidden]{display:none !important}
+  body{background:var(--paper);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif;font-size:17px;line-height:1.4;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:520px;margin:0 auto;padding:calc(24px + env(safe-area-inset-top)) 20px calc(48px + env(safe-area-inset-bottom))}
+  h1{font-size:30px;font-weight:800;letter-spacing:-.02em;line-height:1.1}
+  .sub{color:var(--muted);margin:6px 0 18px}
+  .group{background:var(--card);border-radius:16px;overflow:hidden}
+  textarea{width:100%;border:0;background:transparent;color:var(--ink);font:inherit;padding:14px 16px;min-height:76px;resize:none;outline:none}
+  textarea::placeholder{color:#8E8E93}
+  .btn{display:block;width:100%;padding:15px;border:0;border-radius:14px;background:var(--navy);color:#fff;font:inherit;font-weight:700;cursor:pointer}
+  .btn:active{opacity:.8}
+  .seg{display:flex;background:var(--line);border-radius:10px;padding:2px;margin:18px 0 12px}
+  .seg button{flex:1;min-height:40px;border:0;border-radius:8px;background:transparent;color:var(--ink);font:inherit;font-weight:600;font-size:15px;cursor:pointer}
+  .seg button[aria-pressed=true]{background:var(--card);box-shadow:0 1px 3px rgba(0,0,0,.15)}
+  .msg{color:var(--muted);font-size:15px;margin:8px 4px}
+  .card{background:var(--card);border-radius:16px;margin-top:12px;overflow:hidden}
+  .top{padding:14px 16px 6px;display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+  .nm{font-weight:700;font-size:19px}
+  .badge{font-size:12px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:4px 9px;border-radius:999px;color:#fff;white-space:nowrap}
+  .s-New{background:var(--new)}.s-Quoted{background:var(--quoted)}.s-Booked{background:var(--booked)}.s-Done{background:var(--done)}
+  .body{padding:0 16px 12px;color:var(--muted);font-size:15px}
+  .body b{color:var(--ink);font-weight:600}
+  .dist{color:var(--ink);font-weight:700}
+  .acts{display:flex;flex-wrap:wrap;gap:8px;padding:10px 16px 14px;border-top:.5px solid var(--line)}
+  .acts a,.acts button{padding:9px 14px;border-radius:999px;background:var(--tint);color:var(--card);font:inherit;font-weight:700;font-size:14px;text-decoration:none;border:0;cursor:pointer}
+  .acts .o{background:transparent;color:var(--tint);border:1.5px solid var(--tint)}
+  .acts .x{background:transparent;color:var(--new);border:0;margin-left:auto}
+  .fin{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px 16px 0;border-top:.5px solid var(--line)}
+  .fin label{font-size:12px;color:var(--muted)}
+  .fin input{width:100%;border:1px solid var(--line);border-radius:10px;background:transparent;color:var(--ink);font:inherit;padding:9px 10px}
+  :focus-visible{outline:3px solid var(--tint);outline-offset:2px;border-radius:10px}
+  .link{display:block;text-align:center;margin-top:24px;color:var(--muted);font-size:15px}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <h1>Job Queue</h1>
+  <p class="sub">Paste each request text here. Work them in order or by who is nearest.</p>
+
+  <div class="group">
+    <textarea id="req" placeholder="Paste a request text here"></textarea>
+  </div>
+  <button class="btn" id="paste" type="button" style="margin-top:10px">Paste and add to queue</button>
+  <p class="msg" id="addmsg" hidden></p>
+
+  <div class="seg" id="tabs" role="group" aria-label="View">
+    <button type="button" data-t="active" aria-pressed="true">Active <span id="nA"></span></button>
+    <button type="button" data-t="done" aria-pressed="false">Done <span id="nD"></span></button>
+  </div>
+  <div class="seg" id="sorts" role="group" aria-label="Sort" style="margin-top:0">
+    <button type="button" data-s="order" aria-pressed="true">In order received</button>
+    <button type="button" data-s="near" aria-pressed="false">Nearest to me</button>
+  </div>
+  <p class="msg" id="nearmsg" hidden></p>
+
+  <div id="list"></div>
+  <a class="link" href="quote.html">Open the quote page</a>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const KEY = "idrizi_jobs";
+let jobs = [], tab = "active", sort = "order", me = null;
+try { jobs = JSON.parse(localStorage.getItem(KEY) || "[]"); } catch(e){ jobs = []; }
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(jobs)); } catch(e){} };
+
+function getF(t, label){ const m = t.match(new RegExp("^\\s*" + label + "\\s*:\\s*(.*)$", "im")); return m ? m[1].trim() : ""; }
+function miles(a, b){
+  const R = 3958.8, rad = x => x * Math.PI / 180;
+  const dLat = rad(b.lat - a.lat), dLng = rad(b.lng - a.lng);
+  const h = Math.sin(dLat/2)**2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng/2)**2;
+  return 2 * R * Math.asin(Math.sqrt(h)) * 1.3;
+}
+function ago(ts){
+  const m = Math.max(0, Math.round((Date.now() - ts) / 60000));
+  if (m < 1) return "just now"; if (m < 60) return m + " min ago";
+  const h = Math.floor(m / 60); if (h < 24) return h + " hr ago";
+  return Math.floor(h / 24) + " d ago";
+}
+function note(el, text){ el.textContent = text; el.hidden = !text; }
+
+function addJob(t){
+  const f = { name:getF(t,"Name"), phone:getF(t,"Phone"), service:getF(t,"Service"), when:getF(t,"When"), loc:getF(t,"Location"), map:getF(t,"Map"), veh:getF(t,"Vehicle"), vin:getF(t,"VIN"), notes:getF(t,"Notes") };
+  if (!f.phone && !f.name && !f.service) return false;
+  const j = { id: Date.now() + Math.random(), ts: Date.now(), raw: t, ...f, status: "New", price: "", miles: "" };
+  const mm = f.map.match(/q=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/);
+  if (mm) { j.lat = parseFloat(mm[1]); j.lng = parseFloat(mm[2]); }
+  if (!/^https:\/\/maps\.google\.com\//.test(j.map)) j.map = "";
+  jobs.push(j); save(); return true;
+}
+function addFrom(text){
+  if (!text.trim()) return;
+  if (addJob(text)) { $("req").value = ""; note($("addmsg"), "Added to the queue."); setTimeout(() => note($("addmsg"), ""), 2500); }
+  else note($("addmsg"), "That doesn't look like a request text. Copy the whole message from Messages and try again.");
+  render();
+}
+$("paste").onclick = async () => {
+  let t = $("req").value;
+  if (!t.trim()) { try { t = await navigator.clipboard.readText(); } catch(e){ $("req").focus(); note($("addmsg"), "Press and hold in the box, tap Paste, then tap this button again."); return; } }
+  addFrom(t);
+};
+
+function locate(cb){
+  if (!navigator.geolocation) { note($("nearmsg"), "This phone can't share its location."); return; }
+  note($("nearmsg"), "Finding your location...");
+  navigator.geolocation.getCurrentPosition(p => { me = { lat: p.coords.latitude, lng: p.coords.longitude }; note($("nearmsg"), ""); cb && cb(); },
+    () => { note($("nearmsg"), "Location is off. Allow location for this site, then tap Nearest again."); sort = "order"; render(); }, { enableHighAccuracy: true, timeout: 10000 });
+}
+document.querySelectorAll("#tabs button").forEach(b => b.onclick = () => { tab = b.dataset.t; render(); });
+document.querySelectorAll("#sorts button").forEach(b => b.onclick = () => {
+  sort = b.dataset.s;
+  if (sort === "near") locate(render); else { note($("nearmsg"), ""); render(); }
+  render();
+});
+
+const NEXT = { New: "Mark quoted", Quoted: "Mark booked", Booked: "Mark done" };
+const AFTER = { New: "Quoted", Quoted: "Booked", Booked: "Done" };
+
+function el(tag, cls, text){ const e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; }
+function line(label, val){ const d = el("div"); const b = el("b", "", label + ": "); d.append(b, document.createTextNode(val)); return d; }
+
+function logRow(j){
+  const d = new Date(j.ts), pad = n => String(n).padStart(2, "0");
+  const date = pad(d.getMonth()+1) + "/" + pad(d.getDate()) + "/" + d.getFullYear();
+  return [date, j.name, j.phone, j.service, j.miles, j.price, "", "", [j.veh, j.notes].filter(Boolean).join(" | ")].join("\t");
+}
+
+function card(j){
+  const c = el("div", "card");
+  const top = el("div", "top"); top.append(el("div", "nm", j.name || "No name"), el("span", "badge s-" + j.status, j.status)); c.append(top);
+  const b = el("div", "body");
+  b.append(line("Service", j.service + (j.when ? " (" + j.when + ")" : "")));
+  if (j.loc) b.append(line("Where", j.loc));
+  if (j.veh) b.append(line("Vehicle", j.veh));
+  const meta = el("div"); meta.append("Received " + ago(j.ts));
+  if (me && j.lat != null) { const dd = el("span", "dist", " · about " + miles(me, j).toFixed(1) + " mi from you"); meta.append(dd); }
+  else if (sort === "near" && j.lat == null) meta.append(" · no map pin");
+  b.append(meta); c.append(b);
+
+  if (j.status === "Booked" || j.status === "Done") {
+    const fin = el("div", "fin");
+    [["Price ($)", "price"], ["Miles driven", "miles"]].forEach(([lab, k]) => {
+      const w = el("div"); const l = el("label", "", lab); const i = el("input"); i.type = "number"; i.inputMode = "decimal"; i.value = j[k];
+      i.oninput = () => { j[k] = i.value; save(); }; w.append(l, i); fin.append(w);
+    });
+    c.append(fin);
+  }
+  const a = el("div", "acts");
+  const digits = (j.phone || "").replace(/\D/g, "");
+  if (digits) { const x = el("a", "", "Call"); x.href = "tel:" + digits; a.append(x); const t = el("a", "o", "Text"); t.href = "sms:" + digits; a.append(t); }
+  if (j.map) { const m = el("a", "o", "Maps"); m.href = j.map; m.target = "_blank"; m.rel = "noopener"; a.append(m); }
+  if (j.status === "New" || j.status === "Quoted") {
+    const q = el("button", "o", "Send quote"); q.type = "button";
+    q.onclick = () => { try { localStorage.setItem("idrizi_pending", j.raw); } catch(e){} location.href = "quote.html"; }; a.append(q);
+  }
+  if (NEXT[j.status]) { const n = el("button", "", NEXT[j.status]); n.type = "button"; n.onclick = () => { j.status = AFTER[j.status]; if (j.status === "Done") j.doneTs = Date.now(); save(); render(); }; a.append(n); }
+  if (j.status === "Done") {
+    const cp = el("button", "", "Copy log row"); cp.type = "button";
+    cp.onclick = async () => { try { await navigator.clipboard.writeText(logRow(j)); cp.textContent = "Copied"; } catch(e){ cp.textContent = "Copy failed"; } setTimeout(() => cp.textContent = "Copy log row", 2000); };
+    a.append(cp);
+    const re = el("button", "o", "Reopen"); re.type = "button"; re.onclick = () => { j.status = "Booked"; save(); render(); }; a.append(re);
+  }
+  const rm = el("button", "x", j.status === "Done" ? "Delete" : "Cancel job"); rm.type = "button";
+  rm.onclick = () => { if (confirm("Remove this job from the list?")) { jobs = jobs.filter(z => z !== j); save(); render(); } }; a.append(rm);
+  c.append(a); return c;
+}
+
+function render(){
+  document.querySelectorAll("#tabs button").forEach(b => b.setAttribute("aria-pressed", b.dataset.t === tab));
+  document.querySelectorAll("#sorts button").forEach(b => b.setAttribute("aria-pressed", b.dataset.s === sort));
+  $("sorts").hidden = tab !== "active";
+  const act = jobs.filter(j => j.status !== "Done"), done = jobs.filter(j => j.status === "Done");
+  $("nA").textContent = act.length ? "(" + act.length + ")" : ""; $("nD").textContent = done.length ? "(" + done.length + ")" : "";
+  let list = tab === "active" ? act.slice() : done.slice().sort((a, b) => (b.doneTs || b.ts) - (a.doneTs || a.ts));
+  if (tab === "active") {
+    if (sort === "near" && me) list.sort((a, b) => (a.lat == null) - (b.lat == null) || (a.lat != null ? miles(me, a) - miles(me, b) : a.ts - b.ts));
+    else list.sort((a, b) => a.ts - b.ts);
+  }
+  const box = $("list"); box.replaceChildren();
+  if (!list.length) { box.append(el("p", "msg", tab === "active" ? "No open jobs. Paste a request above when one comes in." : "No finished jobs yet.")); return; }
+  list.forEach(j => box.append(card(j)));
+}
+render();
+setInterval(() => { if (!document.hidden) render(); }, 60000);
+</script>
+</body>
+</html>

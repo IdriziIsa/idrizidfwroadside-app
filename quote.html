@@ -249,6 +249,9 @@ $("pasteBtn").onclick = async () => {
   catch(e){ $("req").focus(); $("pasteBtn").textContent = "Press and hold in the box, then tap Paste"; setTimeout(() => $("pasteBtn").textContent = "Paste from clipboard", 4000); }
 };
 
+/* Request handed over from the job queue */
+try { const pend = localStorage.getItem("idrizi_pending"); if (pend) { localStorage.removeItem("idrizi_pending"); $("req").value = pend; parseReq(); } } catch(e){}
+
 /* Default note (payment methods) saved on this phone */
 try { const dn = (JSON.parse(localStorage.getItem("idrizi_rates") || "{}")).dnote; if (dn) { $("dnote").value = dn; $("note").value = dn; } } catch(e){}
 $("dnote").addEventListener("input", () => {
