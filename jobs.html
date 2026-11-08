@@ -37,6 +37,7 @@
   .acts .x{background:transparent;color:var(--new);border:0;margin-left:auto}
   .fin{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px 16px 0;border-top:.5px solid var(--line)}
   .fin label{font-size:12px;color:var(--muted)}
+  .fin .wide{grid-column:1 / -1}
   .fin input{width:100%;border:1px solid var(--line);border-radius:10px;background:transparent;color:var(--ink);font:inherit;padding:9px 10px}
   :focus-visible{outline:3px solid var(--tint);outline-offset:2px;border-radius:10px}
   .link{display:block;text-align:center;margin-top:24px;color:var(--muted);font-size:15px}
@@ -134,6 +135,25 @@ function logRow(j){
   return [date, j.name, j.phone, j.service, j.miles, j.price, "", "", [j.veh, j.notes].filter(Boolean).join(" | ")].join("\t");
 }
 
+const pad2 = n => String(n).padStart(2, "0");
+const localStr = d => d.getFullYear() + pad2(d.getMonth()+1) + pad2(d.getDate()) + "T" + pad2(d.getHours()) + pad2(d.getMinutes()) + "00";
+const icsEsc = t => String(t || "").replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
+function nextQuarter(){ const d = new Date(); d.setSeconds(0, 0); d.setMinutes(Math.ceil((d.getMinutes() + 1) / 15) * 15); return d; }
+const toInput = d => d.getFullYear() + "-" + pad2(d.getMonth()+1) + "-" + pad2(d.getDate()) + "T" + pad2(d.getHours()) + ":" + pad2(d.getMinutes());
+function addToCalendar(j){
+  const start = new Date(j.sched), end = new Date(start.getTime() + 60 * 60000);
+  const desc = [j.phone && "Phone: " + j.phone, j.veh && "Vehicle: " + j.veh, j.vin && "VIN: " + j.vin, j.map && "Map: " + j.map, j.notes && "Notes: " + j.notes, j.price && "Quoted: $" + j.price].filter(Boolean).join("\n");
+  const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Idrizi DFW Roadside//Jobs//EN", "BEGIN:VEVENT",
+    "UID:" + Math.floor(j.id) + "@idrizidfwroadside", "DTSTAMP:" + localStr(new Date()),
+    "DTSTART:" + localStr(start), "DTEND:" + localStr(end),
+    "SUMMARY:" + icsEsc(j.service + " - " + (j.name || "Customer")), "LOCATION:" + icsEsc(j.loc), "DESCRIPTION:" + icsEsc(desc),
+    "BEGIN:VALARM", "TRIGGER:-PT30M", "ACTION:DISPLAY", "DESCRIPTION:Job coming up", "END:VALARM", "END:VEVENT", "END:VCALENDAR"];
+  const blob = new Blob([lines.join("\r\n")], { type: "text/calendar" });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "job-" + (j.name || "customer").replace(/\W+/g, "-") + ".ics";
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+const fmtSched = v => new Date(v).toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+
 function card(j){
   const c = el("div", "card");
   const top = el("div", "top"); top.append(el("div", "nm", j.name || "No name"), el("span", "badge s-" + j.status, j.status)); c.append(top);
@@ -144,7 +164,9 @@ function card(j){
   const meta = el("div"); meta.append("Received " + ago(j.ts));
   if (me && j.lat != null) { const dd = el("span", "dist", " · about " + miles(me, j).toFixed(1) + " mi from you"); meta.append(dd); }
   else if (sort === "near" && j.lat == null) meta.append(" · no map pin");
-  b.append(meta); c.append(b);
+  b.append(meta);
+  if (j.sched && j.status !== "Done") b.append(line("Scheduled", fmtSched(j.sched)));
+  c.append(b);
 
   if (j.status === "Booked" || j.status === "Done") {
     const fin = el("div", "fin");
@@ -152,6 +174,10 @@ function card(j){
       const w = el("div"); const l = el("label", "", lab); const i = el("input"); i.type = "number"; i.inputMode = "decimal"; i.value = j[k];
       i.oninput = () => { j[k] = i.value; save(); }; w.append(l, i); fin.append(w);
     });
+    if (j.status === "Booked") {
+      const w = el("div", "wide"); const l = el("label", "", "Scheduled time"); const i = el("input"); i.type = "datetime-local"; i.value = j.sched || "";
+      i.onchange = () => { j.sched = i.value; save(); render(); }; w.append(l, i); fin.append(w);
+    }
     c.append(fin);
   }
   const a = el("div", "acts");
@@ -162,7 +188,10 @@ function card(j){
     const q = el("button", "o", "Send quote"); q.type = "button";
     q.onclick = () => { try { localStorage.setItem("idrizi_pending", j.raw); } catch(e){} location.href = "quote.html"; }; a.append(q);
   }
-  if (NEXT[j.status]) { const n = el("button", "", NEXT[j.status]); n.type = "button"; n.onclick = () => { j.status = AFTER[j.status]; if (j.status === "Done") j.doneTs = Date.now(); save(); render(); }; a.append(n); }
+  if (j.status === "Booked" && j.sched) {
+    const cal = el("button", "o", "Add to calendar"); cal.type = "button"; cal.onclick = () => addToCalendar(j); a.append(cal);
+  }
+  if (NEXT[j.status]) { const n = el("button", "", NEXT[j.status]); n.type = "button"; n.onclick = () => { j.status = AFTER[j.status]; if (j.status === "Booked" && !j.sched) j.sched = toInput(nextQuarter()); if (j.status === "Done") j.doneTs = Date.now(); save(); render(); }; a.append(n); }
   if (j.status === "Done") {
     const cp = el("button", "", "Copy log row"); cp.type = "button";
     cp.onclick = async () => { try { await navigator.clipboard.writeText(logRow(j)); cp.textContent = "Copied"; } catch(e){ cp.textContent = "Copy failed"; } setTimeout(() => cp.textContent = "Copy log row", 2000); };
