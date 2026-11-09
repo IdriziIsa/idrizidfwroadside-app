@@ -251,7 +251,7 @@ function saveRequest(ref) {
     veh: [v("vehicle"), v("color")].filter(Boolean).join(", "), vin: v("vin") + (vinInfo && v("vin") ? " (" + vinInfo + ")" : ""), notes: v("notes") };
   try { fetch("/api/request", { method: "POST", keepalive: true, headers: { "content-type": "application/json" }, body: JSON.stringify(body) }).catch(() => {}); } catch (e) {}
 }
-function prepare() { const m = build(); if (!m) return null; const ref = newRef(); saveRequest(ref); return m + "\n\nRef: " + ref + "\nQuote link: " + location.origin + "/quote.html?ref=" + ref; }
+function prepare() { const m = build(); if (!m) return null; const ref = newRef(); saveRequest(ref); return m + "\n\nRef: " + ref + "\nQuote link: " + location.origin + "/jobs.html?ref=" + ref; }
 $("sendText").onclick = () => { const m = prepare(); if (m) location.href = "sms:" + CONFIG.phoneDigits + "?&body=" + encodeURIComponent(m); };
 $("sendMail").onclick = () => { const m = prepare(); if (m) location.href = "mailto:" + CONFIG.email + "?subject=" + encodeURIComponent("Quote Request: " + $("service").value) + "&body=" + encodeURIComponent(m); };
 </script>

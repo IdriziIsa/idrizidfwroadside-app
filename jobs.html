@@ -45,6 +45,31 @@
   .gate input{width:100%;border:1px solid var(--line);border-radius:12px;background:transparent;color:var(--ink);font:inherit;font-size:22px;letter-spacing:.3em;text-align:center;padding:14px}
   .banner{position:sticky;top:calc(8px + env(safe-area-inset-top));z-index:5;background:var(--gold);color:#0B1F44;font-weight:700;border-radius:14px;padding:12px 16px;margin-bottom:12px;box-shadow:0 4px 14px rgba(0,0,0,.25)}
   .conf{color:var(--done);font-weight:700}
+  .qp{border-top:.5px solid var(--line);padding:12px 16px 14px;background:rgba(127,127,127,.06)}
+  .qp .t{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:4px 0 8px}
+  .qp label{display:block;font-size:12px;color:var(--muted);margin-bottom:3px}
+  .qp input,.qp textarea{width:100%;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font:inherit;padding:10px 12px;min-height:0}
+  .qp textarea{min-height:64px;resize:none}
+  .qp .g2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+  .qp .row{display:flex;gap:8px;align-items:flex-end;margin-top:10px}
+  .qp .row > div{flex:1}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{min-height:38px;padding:8px 13px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit;font-weight:600;font-size:14px;cursor:pointer}
+  .chip[aria-checked=true]{background:var(--tint);color:var(--card);border-color:transparent}
+  .hint{font-size:14px;color:var(--muted);margin-top:8px}
+  .hint.ok{color:var(--done)} .hint.bad{color:var(--new)}
+  .qbtn{padding:10px 14px;border-radius:999px;background:var(--tint);color:var(--card);font:inherit;font-weight:700;font-size:14px;border:0;cursor:pointer;white-space:nowrap}
+  .qbtn.o{background:transparent;color:var(--tint);border:1.5px solid var(--tint)}
+  .prev{background:var(--card);border-radius:12px;padding:12px;margin-top:12px;white-space:pre-wrap;font-size:15px;border:1px solid var(--line)}
+  .send{display:block;width:100%;margin-top:12px;padding:15px;border:0;border-radius:14px;background:var(--navy);color:#fff;font:inherit;font-weight:700;font-size:17px;cursor:pointer}
+  .send.alt{background:transparent;color:var(--tint);border:1.5px solid var(--tint);margin-top:8px}
+  details.set{background:var(--card);border-radius:16px;margin-top:20px}
+  details.set summary{padding:16px;font-weight:600;cursor:pointer;list-style:none}
+  details.set summary::-webkit-details-marker{display:none}
+  details.set .in{padding:0 16px 16px}
+  details.set label{display:block;font-size:12px;color:var(--muted);margin:10px 0 3px}
+  details.set input{width:100%;border:1px solid var(--line);border-radius:10px;background:transparent;color:var(--ink);font:inherit;padding:10px 12px}
+  details.set .g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 </style>
 </head>
 <body>
@@ -74,8 +99,20 @@
     </div>
     <p class="msg" id="nearmsg" hidden></p>
     <div id="list"></div>
+    <details class="set" id="settings">
+      <summary>Pricing settings</summary>
+      <div class="in">
+        <p class="hint" style="margin-top:0">Set once. Saved on this phone, never shown on the public site.</p>
+        <div class="g2"><div><label for="r0">Jump start ($)</label><input id="r0" inputmode="decimal" placeholder="65"></div><div><label for="r1">Lockout ($)</label><input id="r1" inputmode="decimal" placeholder="75"></div></div>
+        <div class="g2"><div><label for="r2">Tire change ($)</label><input id="r2" inputmode="decimal" placeholder="70"></div><div><label for="r3">Fuel delivery ($)</label><input id="r3" inputmode="decimal" placeholder="60"></div></div>
+        <div class="g2"><div><label for="r4">Other ($)</label><input id="r4" inputmode="decimal" placeholder="80"></div><div><label for="free">Miles included</label><input id="free" inputmode="decimal" placeholder="10"></div></div>
+        <label for="permile">Charge per extra mile ($)</label><input id="permile" inputmode="decimal" placeholder="3">
+        <label for="dnote">Note on every quote</label><input id="dnote" placeholder="Payment: Cash App, Zelle, or card on site">
+        <button class="qbtn o" id="homeBtn" type="button" style="margin-top:12px">Save my current location as home base</button>
+        <div class="hint" id="homeHint">Used to measure distance if the phone can't share its location.</div>
+      </div>
+    </details>
     <button class="link" id="lock" type="button" style="background:none;border:0;width:100%">Lock this page</button>
-    <a class="link" href="quote.html" style="margin-top:8px">Open the quote page</a>
   </section>
 </main>
 <script>
@@ -135,7 +172,10 @@ async function start(){
   $("gate").hidden = true; $("app").hidden = false;
   await migrate(); await load(true);
   const ref = (new URLSearchParams(location.search).get("ref") || "").toUpperCase();
-  if (/^[A-Z0-9]{6}$/.test(ref)) { location.replace("quote.html?ref=" + ref); return; }
+  if (/^[A-Z0-9]{6}$/.test(ref)) {
+    const j = jobs.find(x => x.ref === ref);
+    if (j) { openId = j.id; tab = "active"; render(); history.replaceState(null, "", "jobs.html"); setTimeout(() => { const e = document.querySelector(".qp"); e && e.scrollIntoView({ block: "center" }); }, 100); }
+  }
   clearInterval(timer); timer = setInterval(() => { if (!document.hidden) load(); }, 15000);
 }
 async function migrate(){
@@ -209,6 +249,93 @@ function logRow(j){
   return [date, j.name, j.phone, j.service, j.miles, j.price, "", "", [j.veh, j.notes].filter(Boolean).join(" | ")].join("\t");
 }
 
+/* ---------- Pricing + quoting, right on the card ---------- */
+const BUSINESS = "Idrizi DFW Roadside", BIZPHONE = "(817) 448-4822";
+const SERVICES = ["Jump Start", "Vehicle Lockout", "Tire Change", "Fuel Delivery", "Other"];
+const RATE_IDS = ["r0", "r1", "r2", "r3", "r4", "free", "permile"];
+const rstore = () => { try { return JSON.parse(localStorage.getItem("idrizi_rates") || "{}"); } catch(e){ return {}; } };
+const rset = (k, v) => { try { const o = rstore(); o[k] = v; localStorage.setItem("idrizi_rates", JSON.stringify(o)); } catch(e){} };
+const numv = v => parseFloat(String(v || "").replace(/[^0-9.]/g, "")) || 0;
+let openId = null; const drafts = {};
+(() => { const sv = rstore(); RATE_IDS.concat("dnote").forEach(i => { if (sv[i] != null) $(i).value = sv[i]; $(i).addEventListener("input", () => rset(i, $(i).value)); }); if (sv.home) $("homeHint").textContent = "Home base saved. Tap to replace it with your current location."; })();
+const hereNow = () => new Promise((res, rej) => navigator.geolocation ? navigator.geolocation.getCurrentPosition(p => res({ lat: p.coords.latitude, lng: p.coords.longitude }), rej, { timeout: 10000 }) : rej());
+$("homeBtn").onclick = async () => { const h = $("homeHint"); try { rset("home", await hereNow()); h.textContent = "Home base saved."; h.className = "hint ok"; } catch(e){ h.textContent = "Couldn't get your location. Allow location access and try again."; h.className = "hint bad"; } };
+async function roadMiles(a, b){
+  const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 6000);
+  try { const r = await fetch("https://router.project-osrm.org/route/v1/driving/" + a.lng + "," + a.lat + ";" + b.lng + "," + b.lat + "?overview=false", { signal: ctl.signal }); const d = await r.json(); return d && d.routes && d.routes[0] ? d.routes[0].distance / 1609.344 : null; }
+  catch(e){ return null; } finally { clearTimeout(t); }
+}
+function suggestion(d){
+  const sv = rstore(), idx = SERVICES.indexOf(d.service), base = numv(sv["r" + (idx < 0 ? 4 : idx)]);
+  if (!base) return null;
+  const extra = Math.max(0, numv(d.dist) - numv(sv.free)), per = numv(sv.permile);
+  return { price: Math.round(base + extra * per), text: "$" + base + " base" + (extra && per ? " + " + extra + " extra mi × $" + per : "") };
+}
+function draftFor(j){
+  if (!drafts[j.id]) {
+    const q = j.quote || {}, svc = SERVICES.includes(j.service) ? j.service : "Other";
+    drafts[j.id] = { service: svc, dist: "", price: q.price || "", eta: q.eta || "", note: q.note != null ? q.note : (rstore().dnote || ""), msg: "", auto: false };
+  }
+  return drafts[j.id];
+}
+function quoteText(j, d){
+  const first = (j.name || "").split(/\s+/)[0], price = numv(d.price), eta = numv(d.eta);
+  return [`Hi${first ? " " + first : ""}, this is ${BUSINESS}.`,
+    `Quote for ${d.service.toLowerCase()}: ${price ? "$" + price : "$__"}.` + (eta ? ` I can be there in about ${eta} minutes.` : ""),
+    d.note.trim(), `Ready to book? Tap here: ${location.origin}/confirm.html?j=${j.id}`, `Or just reply YES and I'll head your way.`, `Questions? Call or text ${BIZPHONE}.`].filter(Boolean).join("\n\n");
+}
+async function autoMeasure(j, d){
+  d.auto = true; d.msg = "Measuring distance...";
+  let from = null, src = "";
+  try { from = await hereNow(); src = "your location"; } catch(e){ const h = rstore().home; if (h) { from = h; src = "your home base"; } }
+  if (!from) { d.msg = "Couldn't get your location. Type the distance, or save a home base in Pricing settings."; d.bad = true; }
+  else {
+    const road = await roadMiles(from, j);
+    const mi = road != null ? road : miles(from, j);
+    d.dist = String(Math.round(mi * 10) / 10); d.msg = d.dist + " mi " + (road != null ? "by road from " : "estimated from ") + src + ". You can change it."; d.bad = false;
+    const sg = suggestion(d); if (sg && !d.price) d.price = String(sg.price);
+  }
+  const a = document.activeElement; if (openId === j.id && !(a && a.closest && a.closest("#list") && /INPUT|TEXTAREA/.test(a.tagName))) render();
+}
+function quotePanel(j){
+  const d = draftFor(j); const p = el("div", "qp");
+  if (j.lat != null && !d.auto) autoMeasure(j, d);
+  p.append(el("div", "t", j.status === "Quoted" ? "Resend quote" : "Quote"));
+  const chips = el("div", "chips"); chips.setAttribute("role", "radiogroup");
+  SERVICES.forEach(v => { const c = el("button", "chip", v); c.type = "button"; c.setAttribute("role", "radio"); c.setAttribute("aria-checked", d.service === v);
+    c.onclick = () => { d.service = v; const sg = suggestion(d); if (sg) d.price = String(sg.price); render(); }; chips.append(c); });
+  p.append(chips);
+  const inp = (label, key, attrs = {}) => { const w = el("div"); const l = el("label", "", label); const i = el("input"); Object.assign(i, attrs); i.value = d[key]; i.oninput = () => { d[key] = i.value; refresh(); }; w.append(l, i); return [w, i]; };
+  const row = el("div", "row"); const [dw, di] = inp("Distance to customer (miles)", "dist", { inputMode: "decimal", placeholder: "12" }); row.append(dw);
+  if (j.lat != null) { const m = el("button", "qbtn o", "Re-measure"); m.type = "button"; m.onclick = () => { d.auto = false; d.dist = ""; render(); }; row.append(m); }
+  p.append(row);
+  const hint = el("div", "hint"); const use = el("button", "qbtn", ""); use.type = "button"; use.style.marginTop = "8px";
+  p.append(hint, use);
+  const g = el("div", "g2"); const [pw, pi] = inp("Price ($)", "price", { inputMode: "decimal", placeholder: "85" }); const [ew, ei] = inp("Arrival (minutes)", "eta", { inputMode: "numeric", placeholder: "30" }); g.append(pw, ew); p.append(g);
+  const nw = el("div"); nw.style.marginTop = "10px"; const nl = el("label", "", "Extra note (optional)"); const nt = el("textarea"); nt.value = d.note; nt.placeholder = "Payment: Cash App, Zelle, card on site"; nt.oninput = () => { d.note = nt.value; refresh(); }; nw.append(nl, nt); p.append(nw);
+  const prev = el("div", "prev"); const err = el("div", "hint bad"); err.hidden = true; p.append(prev, err);
+  const send = el("button", "send", "Text this quote"); send.type = "button"; const copy = el("button", "send alt", "Copy message"); copy.type = "button"; p.append(send, copy);
+  function refresh(){
+    const sg = suggestion(d);
+    hint.className = "hint" + (d.bad ? " bad" : d.msg.includes(" mi ") ? " ok" : ""); hint.textContent = d.msg || "";
+    if (sg) { const sx = el("span", "", (d.msg ? " " : "") + "Suggested: $" + sg.price + " (" + sg.text + ")"); hint.append(sx); use.textContent = "Use $" + sg.price; use.hidden = false; use.onclick = () => { d.price = String(sg.price); pi.value = d.price; refresh(); }; }
+    else { use.hidden = true; if (!d.msg) hint.textContent = "Set your prices in Pricing settings (bottom of the page) to get a suggested price."; }
+    prev.textContent = quoteText(j, d);
+  }
+  const digits = (j.phone || "").replace(/\D/g, "");
+  function save(){
+    const price = numv(d.price); if (!digits || !price) { err.textContent = "Add a price (and the customer needs a phone number)."; err.hidden = false; return false; }
+    err.hidden = true;
+    const quote = { price: String(price), eta: String(numv(d.eta) || ""), note: d.note.trim() };
+    try { fetch("/api/jobs", { method: "POST", keepalive: true, headers: { "x-queue-pin": pin, "content-type": "application/json" }, body: JSON.stringify({ action: "update", id: j.id, patch: { status: "Quoted", price: quote.price, quote } }) }).catch(() => {}); } catch(e){}
+    if (j.status !== "Booked" && j.status !== "Done") { j.status = "Quoted"; j.price = quote.price; j.quote = { ...quote, ts: Date.now() }; j.confirmed = false; }
+    return true;
+  }
+  send.onclick = () => { if (!save()) return; const m = quoteText(j, d); openId = null; location.href = "sms:" + digits + "?&body=" + encodeURIComponent(m); setTimeout(render, 400); };
+  copy.onclick = async () => { if (!save()) return; try { await navigator.clipboard.writeText(quoteText(j, d)); copy.textContent = "Copied"; } catch(e){ copy.textContent = "Press and hold the message to copy"; } setTimeout(() => copy.textContent = "Copy message", 2000); };
+  refresh(); return p;
+}
+
 function card(j){
   const c = el("div", "card");
   const top = el("div", "top"); top.append(el("div", "nm", j.name || "No name"), el("span", "badge s-" + j.status, j.status)); c.append(top);
@@ -236,13 +363,15 @@ function card(j){
     }
     c.append(fin);
   }
+  if ((j.status === "New" || j.status === "Quoted") && openId === j.id) c.append(quotePanel(j));
   const a = el("div", "acts");
   const digits = (j.phone || "").replace(/\D/g, "");
   if (digits) { const x = el("a", "", "Call"); x.href = "tel:" + digits; a.append(x); const t = el("a", "o", "Text"); t.href = "sms:" + digits; a.append(t); }
   if (j.map) { const m = el("a", "o", "Maps"); m.href = j.map; m.target = "_blank"; m.rel = "noopener"; a.append(m); }
-  if (j.status === "New" || j.status === "Quoted") {
-    const q = el("button", "o", j.status === "Quoted" ? "Resend quote" : "Send quote"); q.type = "button";
-    q.onclick = () => { try { localStorage.setItem("idrizi_pending", j.raw); localStorage.setItem("idrizi_pending_id", j.id); } catch(e){} location.href = "quote.html"; }; a.append(q);
+  const canQuote = j.status === "New" || j.status === "Quoted";
+  if (canQuote) {
+    const q = el("button", openId === j.id || j.status === "Quoted" ? "o" : "", openId === j.id ? "Close quote" : j.status === "Quoted" ? "Resend quote" : "Quote"); q.type = "button";
+    q.onclick = () => { openId = openId === j.id ? null : j.id; render(); }; a.append(q);
   }
   if (j.status === "Booked" && j.sched) { const cal = el("button", "o", "Add to calendar"); cal.type = "button"; cal.onclick = () => addToCalendar(j); a.append(cal); }
   if (NEXT[j.status]) {
