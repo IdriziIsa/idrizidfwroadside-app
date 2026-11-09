@@ -101,6 +101,8 @@
 
   <section id="app" hidden>
     <div class="stats" id="stats"></div>
+    <button class="qbtn o" id="csvTop" type="button" style="width:100%;margin:-4px 0 14px">Download finished jobs (spreadsheet)</button>
+    <p class="msg" id="csvMsg" hidden style="margin-top:-8px"></p>
     <div class="group"><textarea id="req" placeholder="Got a request by text? Paste it here"></textarea></div>
     <button class="btn" id="paste" type="button" style="margin-top:10px">Paste and add to queue</button>
     <p class="msg" id="addmsg" hidden></p>
@@ -446,6 +448,10 @@ function downloadCsv(){
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }
 $("csvBtn").onclick = downloadCsv;
+$("csvTop").onclick = () => {
+  if (!jobs.some(j => j.status === "Done")) { note($("csvMsg"), "No finished jobs yet. Mark a job Done and it will be included."); setTimeout(() => note($("csvMsg"), ""), 4000); return; }
+  downloadCsv();
+};
 
 /* ---------- Phone alerts (push) ---------- */
 const b64 = k => { const p = "=".repeat((4 - k.length % 4) % 4), r = atob((k + p).replace(/-/g, "+").replace(/_/g, "/")); return Uint8Array.from(r, c => c.charCodeAt(0)); };
