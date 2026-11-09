@@ -406,7 +406,7 @@ function card(j){
   const reviewUrl = (rstore().review || "").trim();
   if (digits && j.status === "Done" && /^https?:\/\//.test(reviewUrl)) sms("Ask for a review", hi + " Thanks for choosing us! If we helped you out, a quick Google review means a lot: " + reviewUrl, "q");
   if (digits && (j.status === "New" || j.status === "Quoted")) {
-    const tf = el("button", "o", "Too far"); tf.type = "button";
+    const tf = el("button", "o", "Decline (too far)"); tf.type = "button";
     tf.onclick = () => { if (!confirm("Send a polite 'can't take this one' text and set this job aside?")) return; upd(j, { status: "Declined" }); openId = null; location.href = "sms:" + digits + "?&body=" + encodeURIComponent(hi + " Thanks for reaching out. Unfortunately you're outside the area we can cover right now, so we can't take this one. Sorry about that, and I hope you get help quickly!"); setTimeout(render, 400); }; a.append(tf);
   }
   if (j.status === "Declined") { const ro = el("button", "o", "Reopen"); ro.type = "button"; ro.onclick = async () => { await upd(j, { status: "New" }); render(); }; a.append(ro); }
