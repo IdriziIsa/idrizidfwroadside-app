@@ -1,4 +1,5 @@
 import { store, readJSON } from "../lib/store.mjs";
+import { sendPush } from "../lib/push.mjs";
 import { cleanFields, buildRaw, makeJob, newId, newRef, isRef, json, rateLimit, notify } from "../lib/jobs.mjs";
 
 /* Public: a customer's quote request from the website. */
@@ -17,7 +18,10 @@ export default async (req, context) => {
   const job = makeJob({ id, ref, fields: f, raw: buildRaw(f, ref) });
   await s.setJSON("job/" + id, job);
   await s.setJSON("ref/" + ref, id);
-  await notify("New request: " + f.service + " - " + f.name, job.raw);
+  await Promise.all([
+    notify("New request: " + f.service + " - " + f.name, job.raw),
+    sendPush(s, { title: "New request: " + f.service, body: f.name + (f.loc ? " · " + f.loc : ""), url: "/jobs.html?ref=" + ref, tag: "req-" + ref }),
+  ]);
   return json({ ok: true, ref });
 };
 export const config = { path: "/api/request" };

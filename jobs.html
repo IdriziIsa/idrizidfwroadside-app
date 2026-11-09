@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <title>Job Queue | Idrizi DFW Roadside</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="theme-color" content="#0B1F44">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Idrizi Jobs">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <style>
   :root{color-scheme:light dark;--paper:#F5F5F7;--card:#fff;--ink:#1D1D1F;--muted:#5C5C61;--line:rgba(60,60,67,.18);--navy:#0B1F44;--tint:#0B1F44;--gold:#F2B705;--new:#D70015;--quoted:#B25E00;--booked:#0A6CFF;--done:#1E7B34}
   @media (prefers-color-scheme:dark){:root{--paper:#000;--card:#1C1C1E;--ink:#F5F5F7;--muted:#A1A1A6;--line:rgba(235,235,245,.16);--navy:#12306B;--tint:#F2B705;--new:#FF453A;--quoted:#FF9F0A;--booked:#4DA3FF;--done:#32D74B}}
@@ -45,6 +52,14 @@
   .gate input{width:100%;border:1px solid var(--line);border-radius:12px;background:transparent;color:var(--ink);font:inherit;font-size:22px;letter-spacing:.3em;text-align:center;padding:14px}
   .banner{position:sticky;top:calc(8px + env(safe-area-inset-top));z-index:5;background:var(--gold);color:#0B1F44;font-weight:700;border-radius:14px;padding:12px 16px;margin-bottom:12px;box-shadow:0 4px 14px rgba(0,0,0,.25)}
   .conf{color:var(--done);font-weight:700}
+  .s-Declined{background:#8E8E93}
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);background:var(--card);border-radius:16px;margin-bottom:14px;overflow:hidden}
+  .stats div{padding:12px 8px;text-align:center}
+  .stats div + div{border-left:.5px solid var(--line)}
+  .stats b{display:block;font-size:22px;letter-spacing:-.01em}
+  .stats span{font-size:12px;color:var(--muted)}
+  .stats .cap{grid-column:1 / -1;border-left:0;border-bottom:.5px solid var(--line);font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:10px 8px 8px}
+  .acts .q{background:var(--done);color:#fff}
   .qp{border-top:.5px solid var(--line);padding:12px 16px 14px;background:rgba(127,127,127,.06)}
   .qp .t{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:4px 0 8px}
   .qp label{display:block;font-size:12px;color:var(--muted);margin-bottom:3px}
@@ -85,6 +100,7 @@
   </section>
 
   <section id="app" hidden>
+    <div class="stats" id="stats"></div>
     <div class="group"><textarea id="req" placeholder="Got a request by text? Paste it here"></textarea></div>
     <button class="btn" id="paste" type="button" style="margin-top:10px">Paste and add to queue</button>
     <p class="msg" id="addmsg" hidden></p>
@@ -98,6 +114,7 @@
       <button type="button" data-s="near" aria-pressed="false">Nearest to me</button>
     </div>
     <p class="msg" id="nearmsg" hidden></p>
+    <button class="btn" id="csvBtn" type="button" style="margin:0 0 4px" hidden>Download spreadsheet (all finished jobs)</button>
     <div id="list"></div>
     <details class="set" id="settings">
       <summary>Pricing settings</summary>
@@ -108,6 +125,10 @@
         <div class="g2"><div><label for="r4">Other ($)</label><input id="r4" inputmode="decimal" placeholder="80"></div><div><label for="free">Miles included</label><input id="free" inputmode="decimal" placeholder="10"></div></div>
         <label for="permile">Charge per extra mile ($)</label><input id="permile" inputmode="decimal" placeholder="3">
         <label for="dnote">Note on every quote</label><input id="dnote" placeholder="Payment: Cash App, Zelle, or card on site">
+        <label for="review">Google review link (for the "Ask for a review" text)</label><input id="review" inputmode="url" placeholder="https://g.page/r/...">
+        <label>Phone alerts</label>
+        <button class="qbtn" id="alertBtn" type="button">Turn on alerts on this phone</button>
+        <div class="hint" id="alertHint">Get a buzz when a request comes in or a customer books.</div>
         <button class="qbtn o" id="homeBtn" type="button" style="margin-top:12px">Save my current location as home base</button>
         <div class="hint" id="homeHint">Used to measure distance if the phone can't share its location.</div>
       </div>
@@ -170,6 +191,8 @@ async function load(first){
 }
 async function start(){
   $("gate").hidden = true; $("app").hidden = false;
+  try { navigator.serviceWorker && navigator.serviceWorker.register("/sw.js"); } catch(e){}
+  alertStatus();
   await migrate(); await load(true);
   const ref = (new URLSearchParams(location.search).get("ref") || "").toUpperCase();
   if (/^[A-Z0-9]{6}$/.test(ref)) {
@@ -245,7 +268,7 @@ function addToCalendar(j){
 }
 const fmtSched = v => new Date(v).toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 function logRow(j){
-  const d = new Date(j.ts), date = pad2(d.getMonth()+1) + "/" + pad2(d.getDate()) + "/" + d.getFullYear();
+  const d = new Date(j.doneTs || j.ts), date = pad2(d.getMonth()+1) + "/" + pad2(d.getDate()) + "/" + d.getFullYear();
   return [date, j.name, j.phone, j.service, j.miles, j.price, "", "", [j.veh, j.notes].filter(Boolean).join(" | ")].join("\t");
 }
 
@@ -257,7 +280,7 @@ const rstore = () => { try { return JSON.parse(localStorage.getItem("idrizi_rate
 const rset = (k, v) => { try { const o = rstore(); o[k] = v; localStorage.setItem("idrizi_rates", JSON.stringify(o)); } catch(e){} };
 const numv = v => parseFloat(String(v || "").replace(/[^0-9.]/g, "")) || 0;
 let openId = null; const drafts = {};
-(() => { const sv = rstore(); RATE_IDS.concat("dnote").forEach(i => { if (sv[i] != null) $(i).value = sv[i]; $(i).addEventListener("input", () => rset(i, $(i).value)); }); if (sv.home) $("homeHint").textContent = "Home base saved. Tap to replace it with your current location."; })();
+(() => { const sv = rstore(); RATE_IDS.concat("dnote", "review").forEach(i => { if (sv[i] != null) $(i).value = sv[i]; $(i).addEventListener("input", () => rset(i, $(i).value)); }); if (sv.home) $("homeHint").textContent = "Home base saved. Tap to replace it with your current location."; })();
 const hereNow = () => new Promise((res, rej) => navigator.geolocation ? navigator.geolocation.getCurrentPosition(p => res({ lat: p.coords.latitude, lng: p.coords.longitude }), rej, { timeout: 10000 }) : rej());
 $("homeBtn").onclick = async () => { const h = $("homeHint"); try { rset("home", await hereNow()); h.textContent = "Home base saved."; h.className = "hint ok"; } catch(e){ h.textContent = "Couldn't get your location. Allow location access and try again."; h.className = "hint bad"; } };
 async function roadMiles(a, b){
@@ -373,6 +396,20 @@ function card(j){
     const q = el("button", openId === j.id || j.status === "Quoted" ? "o" : "", openId === j.id ? "Close quote" : j.status === "Quoted" ? "Resend quote" : "Quote"); q.type = "button";
     q.onclick = () => { openId = openId === j.id ? null : j.id; render(); }; a.append(q);
   }
+  const first = (j.name || "").split(/\s+/)[0], hi = "Hi" + (first ? " " + first : "") + ", this is " + BUSINESS + ".";
+  const sms = (label, body, cls) => { const b2 = el("button", cls || "o", label); b2.type = "button"; b2.onclick = () => { location.href = "sms:" + digits + "?&body=" + encodeURIComponent(body); }; a.append(b2); };
+  if (digits && j.status === "Booked") {
+    const eta = j.quote && j.quote.eta;
+    sms("On my way", hi + " I'm on my way now" + (eta ? ", about " + eta + " minutes out" : "") + ". Call or text " + BIZPHONE + " if anything changes.");
+    sms("I've arrived", hi + " I've arrived at your location.");
+  }
+  const reviewUrl = (rstore().review || "").trim();
+  if (digits && j.status === "Done" && /^https?:\/\//.test(reviewUrl)) sms("Ask for a review", hi + " Thanks for choosing us! If we helped you out, a quick Google review means a lot: " + reviewUrl, "q");
+  if (digits && (j.status === "New" || j.status === "Quoted")) {
+    const tf = el("button", "o", "Too far"); tf.type = "button";
+    tf.onclick = () => { if (!confirm("Send a polite 'can't take this one' text and set this job aside?")) return; upd(j, { status: "Declined" }); openId = null; location.href = "sms:" + digits + "?&body=" + encodeURIComponent(hi + " Thanks for reaching out. Unfortunately you're outside the area we can cover right now, so we can't take this one. Sorry about that, and I hope you get help quickly!"); setTimeout(render, 400); }; a.append(tf);
+  }
+  if (j.status === "Declined") { const ro = el("button", "o", "Reopen"); ro.type = "button"; ro.onclick = async () => { await upd(j, { status: "New" }); render(); }; a.append(ro); }
   if (j.status === "Booked" && j.sched) { const cal = el("button", "o", "Add to calendar"); cal.type = "button"; cal.onclick = () => addToCalendar(j); a.append(cal); }
   if (NEXT[j.status]) {
     const n = el("button", "", NEXT[j.status]); n.type = "button";
@@ -389,11 +426,61 @@ function card(j){
   c.append(a); return c;
 }
 
+const money = n => "$" + Math.round(n).toLocaleString();
+function renderStats(){
+  const now = new Date(), box = $("stats"); box.replaceChildren();
+  const mine = jobs.filter(j => { if (j.status !== "Done") return false; const d = new Date(j.doneTs || j.ts); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear(); });
+  const cap = el("div", "cap", now.toLocaleString([], { month: "long" }) + " so far"); box.append(cap);
+  [[String(mine.length), "jobs done"], [money(mine.reduce((t, j) => t + numv(j.price), 0)), "money in"], [Math.round(mine.reduce((t, j) => t + numv(j.miles), 0)).toLocaleString(), "miles"]]
+    .forEach(([v, l]) => { const d = el("div"); d.append(el("b", "", v), el("span", "", l)); box.append(d); });
+}
+function downloadCsv(){
+  const q = v => '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"';
+  const rows = [["Date", "Customer", "Phone", "Service", "Miles", "Price ($)", "Paid By", "Lead Source", "Notes"]];
+  jobs.filter(j => j.status === "Done").sort((a, b) => (a.doneTs || a.ts) - (b.doneTs || b.ts)).forEach(j => {
+    const d = new Date(j.doneTs || j.ts);
+    rows.push([pad2(d.getMonth() + 1) + "/" + pad2(d.getDate()) + "/" + d.getFullYear(), j.name, j.phone, j.service, j.miles, j.price, "", "", [j.veh, j.notes].filter(Boolean).join(" | ")]);
+  });
+  const blob = new Blob(["﻿" + rows.map(r => r.map(q).join(",")).join("\r\n")], { type: "text/csv" });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "idrizi-finished-jobs-" + new Date().getFullYear() + ".csv";
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+$("csvBtn").onclick = downloadCsv;
+
+/* ---------- Phone alerts (push) ---------- */
+const b64 = k => { const p = "=".repeat((4 - k.length % 4) % 4), r = atob((k + p).replace(/-/g, "+").replace(/_/g, "/")); return Uint8Array.from(r, c => c.charCodeAt(0)); };
+async function pushApi(method, body){ const r = await fetch("/api/push", { method, headers: { "x-queue-pin": pin, "content-type": "application/json" }, body: body && JSON.stringify(body) }); const d = await r.json().catch(() => ({})); if (!r.ok) { const e = new Error(d.error || "error"); e.status = r.status; throw e; } return d; }
+const pushOK = () => "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+async function alertStatus(){
+  const b = $("alertBtn"), h = $("alertHint");
+  if (!pushOK()) { b.hidden = true; h.textContent = "Alerts need the app installed. On iPhone: tap Share, then Add to Home Screen, and open it from the new icon."; return; }
+  b.hidden = false;
+  const reg = await navigator.serviceWorker.getRegistration("/"); const sub = reg && await reg.pushManager.getSubscription();
+  if (sub && Notification.permission === "granted") { b.textContent = "Turn off alerts"; b.className = "qbtn o"; h.textContent = "Alerts are on for this phone."; h.className = "hint ok"; }
+  else { b.textContent = "Turn on alerts on this phone"; b.className = "qbtn"; h.textContent = "Get a buzz when a request comes in or a customer books."; h.className = "hint"; }
+}
+$("alertBtn").onclick = async () => {
+  const b = $("alertBtn"), h = $("alertHint"); b.disabled = true;
+  try {
+    const reg = await navigator.serviceWorker.register("/sw.js"); await navigator.serviceWorker.ready;
+    const cur = await reg.pushManager.getSubscription();
+    if (cur) { try { await pushApi("DELETE", { sub: cur.toJSON() }); } catch(e){} await cur.unsubscribe(); }
+    else {
+      if (await Notification.requestPermission() !== "granted") { h.textContent = "Alerts are blocked. Allow notifications for this app in your phone settings, then try again."; h.className = "hint bad"; b.disabled = false; return; }
+      const { key } = await pushApi("GET");
+      const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64(key) });
+      await pushApi("POST", { sub: sub.toJSON() });
+    }
+  } catch (e) { h.textContent = e.status === 503 ? "Alerts aren't switched on on the server yet." : "Couldn't change alerts. Try again."; h.className = "hint bad"; b.disabled = false; return; }
+  b.disabled = false; alertStatus();
+};
+
 function render(){
   document.querySelectorAll("#tabs button").forEach(b => b.setAttribute("aria-pressed", b.dataset.t === tab));
   document.querySelectorAll("#sorts button").forEach(b => b.setAttribute("aria-pressed", b.dataset.s === sort));
   $("sorts").hidden = tab !== "active";
-  const act = jobs.filter(j => j.status !== "Done"), done = jobs.filter(j => j.status === "Done");
+  const act = jobs.filter(j => j.status !== "Done" && j.status !== "Declined"), done = jobs.filter(j => j.status === "Done" || j.status === "Declined");
+  renderStats(); $("csvBtn").hidden = !(tab === "done" && jobs.some(j => j.status === "Done"));
   $("nA").textContent = act.length ? "(" + act.length + ")" : ""; $("nD").textContent = done.length ? "(" + done.length + ")" : "";
   const list = tab === "active" ? act.slice() : done.slice().sort((a, b) => (b.doneTs || b.ts) - (a.doneTs || a.ts));
   if (tab === "active") {

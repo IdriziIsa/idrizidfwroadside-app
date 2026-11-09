@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 
 const flat = (s, n) => String(s ?? "").replace(/[\u0000-\u001f\u007f]+/g, " ").trim().slice(0, n);
-export const STATUSES = ["New", "Quoted", "Booked", "Done"];
+export const STATUSES = ["New", "Quoted", "Booked", "Done", "Declined"];
 export const newId = () => crypto.randomBytes(16).toString("hex");
 export const isId = s => /^[a-f0-9]{32}$/.test(String(s || ""));
 export const newRef = () => crypto.randomBytes(4).toString("hex").slice(0, 6).toUpperCase();

@@ -58,6 +58,7 @@ function show(j){
   if (j.status === "Booked" || j.status === "Done") {
     T("You're booked" + (j.name ? ", " + j.name : "") + ".", "We're getting ready to head your way. Keep your phone nearby in case we need to reach you."); summary(j); $("h").className = "done"; return;
   }
+  if (j.status === "Declined") { T("We can't take this job.", "Sorry about that. Please call us if you have any questions."); $("card").hidden = true; return; }
   if (j.expired) { T("This quote has expired.", "Please call or text us and we'll send a fresh one."); return; }
   if (!j.price) { T("We're still preparing your quote.", "You'll get a text from us shortly. You can also call."); return; }
   T("Your quote" + (j.name ? ", " + j.name : ""), "Tap below to book and we'll head your way."); summary(j);

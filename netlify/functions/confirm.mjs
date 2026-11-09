@@ -1,4 +1,5 @@
 import { store, readJSON } from "../lib/store.mjs";
+import { sendPush } from "../lib/push.mjs";
 import { isId, json, rateLimit, notify } from "../lib/jobs.mjs";
 
 const DAY = 24 * 3600 * 1000;
@@ -20,7 +21,10 @@ export default async (req, context) => {
     if (Date.now() - job.quote.ts > 2 * DAY) return json({ error: "expired", job: view(job) }, 410);
     job.status = "Booked"; job.confirmed = true; job.confirmedTs = Date.now();
     await s.setJSON("job/" + id, job);
-    await notify("Customer booked: " + job.service + " - " + job.name, "Booked at $" + job.quote.price + ". Phone: " + job.phone);
+    await Promise.all([
+      notify("Customer booked: " + job.service + " - " + job.name, "Booked at $" + job.quote.price + ". Phone: " + job.phone),
+      sendPush(s, { title: (job.name || "Customer") + " booked", body: job.service + " · $" + job.quote.price, url: "/jobs.html?ref=" + (job.ref || ""), tag: "book-" + job.id }),
+    ]);
   } else if (post && job.status === "New") {
     return json({ error: "no_quote", job: view(job) }, 409);
   }
